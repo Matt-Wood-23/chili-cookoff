@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.env
+*.db
+uploads/
+__pycache__/
+.DS_Store
+nul
+*.log
+client/src/index
+server/src/server.js.bak

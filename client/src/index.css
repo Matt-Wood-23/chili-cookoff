@@ -1,0 +1,70 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles for the Chili Cook-Off application */
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+}
+
+/* Custom component styles */
+.chili-card {
+  @apply bg-white rounded-lg shadow-md overflow-hidden transition-transform duration-200 hover:scale-105;
+}
+
+.rating-input {
+  @apply w-12 h-12 text-center border-2 border-gray-300 rounded-md focus:border-blue-500 focus:outline-none;
+}
+
+.vote-button {
+  @apply bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200;
+}
+
+.admin-button {
+  @apply bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200;
+}
+
+.danger-button {
+  @apply bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded transition-colors duration-200;
+}
+
+/* Loading spinner animation */
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.loading-spinner {
+  animation: spin 1s linear infinite;
+}
+
+/* Results dashboard styles */
+.podium-1 {
+  @apply bg-gradient-to-r from-yellow-400 to-yellow-600 text-white;
+}
+
+.podium-2 {
+  @apply bg-gradient-to-r from-gray-300 to-gray-500 text-white;
+}
+
+.podium-3 {
+  @apply bg-gradient-to-r from-orange-400 to-orange-600 text-white;
+}
+
+/* Responsive design helpers */
+@media (max-width: 640px) {
+  .chili-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  .chili-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1025px) {
+  .chili-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
