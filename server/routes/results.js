@@ -2,10 +2,59 @@ const express = require('express');
 const adminAuth = require('../middleware/adminAuth');
 const router = express.Router();
 
+// Rank entries, letting genuine ties share a place (1, 2, 2, 4) instead of
+// being separated by whatever order the database happened to return.
+function applyRanks(entries, scoreOf) {
+  entries.forEach((entry, index) => {
+    const score = scoreOf(entry);
+    const previous = entries[index - 1];
+    entry.rank = previous && scoreOf(previous) === score ? previous.rank : index + 1;
+  });
+
+  const perRank = entries.reduce((acc, e) => {
+    acc[e.rank] = (acc[e.rank] || 0) + 1;
+    return acc;
+  }, {});
+  entries.forEach((e) => { e.tied = perRank[e.rank] > 1; });
+
+  return entries;
+}
+
+// How many people are actually judging: everyone who has cast at least one
+// vote. Self-adjusting, so latecomers raise the bar and printed-but-unused
+// judge codes do not.
+async function getCoverage(db) {
+  const { expected } = await db.get(
+    'SELECT COUNT(DISTINCT voter_key) as expected FROM votes'
+  );
+
+  const perChili = await db.all(`
+    SELECT c.id, c.name, c.contestant_name, COUNT(v.id) as vote_count
+    FROM chilis c
+    LEFT JOIN votes v ON c.id = v.chili_id
+    GROUP BY c.id
+    ORDER BY vote_count ASC, c.name
+  `);
+
+  const missing = expected > 0
+    ? perChili
+        .filter((c) => c.vote_count < expected)
+        .map((c) => ({ ...c, missing: expected - c.vote_count }))
+    : [];
+
+  return {
+    expected_judges: expected,
+    complete: expected > 0 && missing.length === 0,
+    missing
+  };
+}
+
 // GET /api/results/leaderboard - Get overall rankings
 router.get('/leaderboard', async (req, res) => {
   try {
-    const leaderboard = await req.db.all(`
+    const coverage = await getCoverage(req.db);
+
+    const rows = await req.db.all(`
       SELECT 
         c.id,
         c.name,
@@ -13,6 +62,7 @@ router.get('/leaderboard', async (req, res) => {
         c.description,
         c.image_path,
         COUNT(v.id) as vote_count,
+        SUM(v.overall) as total_overall,
         ROUND(AVG(v.overall), 1) as avg_overall,
         ROUND(AVG(v.heat), 1) as avg_heat,
         ROUND(AVG(v.flavor), 1) as avg_flavor,
@@ -24,22 +74,47 @@ router.get('/leaderboard', async (req, res) => {
       LEFT JOIN votes v ON c.id = v.chili_id
       GROUP BY c.id
       HAVING vote_count > 0
-      ORDER BY avg_overall DESC, vote_count DESC
     `);
 
-    // Add ranking
-    leaderboard.forEach((entry, index) => {
-      entry.rank = index + 1;
-      entry.podium_position = index < 3 ? index + 1 : null;
+    // With every judge rating every chili, total and average give the same
+    // order, and the total is the nicer number to announce. When coverage is
+    // uneven the total would punish whichever chili fewer people reached, so
+    // fall back to the average and say so.
+    const basis = coverage.complete ? 'total' : 'average';
+    const scoreOf = (entry) =>
+      basis === 'total' ? entry.total_overall : entry.avg_overall;
+
+    rows.sort((a, b) =>
+      scoreOf(b) - scoreOf(a) ||
+      b.vote_count - a.vote_count ||
+      String(a.name).localeCompare(String(b.name))
+    );
+
+    applyRanks(rows, scoreOf);
+    rows.forEach((entry) => {
+      entry.podium_position = entry.rank <= 3 ? entry.rank : null;
+      entry.missing_votes = Math.max(0, coverage.expected_judges - entry.vote_count);
     });
 
     res.json({
-      leaderboard,
+      leaderboard: rows,
+      ranking: { basis, complete: coverage.complete },
+      coverage,
       lastUpdated: new Date().toISOString()
     });
   } catch (error) {
     console.error('Error fetching leaderboard:', error);
     res.status(500).json({ error: 'Failed to fetch leaderboard' });
+  }
+});
+
+// GET /api/results/coverage - Which entries still need ratings
+router.get('/coverage', async (req, res) => {
+  try {
+    res.json({ ...(await getCoverage(req.db)), lastUpdated: new Date().toISOString() });
+  } catch (error) {
+    console.error('Error fetching coverage:', error);
+    res.status(500).json({ error: 'Failed to fetch coverage' });
   }
 });
 
@@ -74,10 +149,7 @@ router.get('/category/:category', async (req, res) => {
       ORDER BY avg_category_score DESC, vote_count DESC
     `);
 
-    // Add ranking
-    rankings.forEach((entry, index) => {
-      entry.rank = index + 1;
-    });
+    applyRanks(rankings, (entry) => entry.avg_category_score);
 
     res.json({
       category,

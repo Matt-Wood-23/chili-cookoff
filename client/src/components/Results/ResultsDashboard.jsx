@@ -165,13 +165,53 @@ const Leaderboard = ({ results }) => {
   }
 
   const leaderboard = results.leaderboard;
+  const coverage = results.coverage || { expected_judges: 0, complete: false, missing: [] };
+  const basis = results.ranking?.basis || 'average';
 
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-200">
-        <h2 className="text-lg font-semibold text-gray-900">Overall Leaderboard</h2>
-        <p className="text-sm text-gray-600 mt-1">Ranked by average overall score</p>
-      </div>
+    <div className="space-y-4">
+      {coverage.expected_judges > 0 && (
+        coverage.complete ? (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <p className="text-sm text-green-800">
+              <span className="font-semibold">Every chili has been rated by all {coverage.expected_judges} judges.</span>{' '}
+              Ranked by total points — with full coverage that matches the average exactly.
+            </p>
+          </div>
+        ) : (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <p className="text-sm text-amber-900 font-semibold">
+              Not everyone has rated everything yet — these standings are provisional.
+            </p>
+            <p className="text-sm text-amber-800 mt-1">
+              Ranked by average, because totals would punish whichever chili fewer people
+              reached. An entry with only a rating or two can sit near the top on very
+              little evidence, so check the ratings column before calling a winner.
+            </p>
+            <ul className="mt-2 text-sm text-amber-800 list-disc list-inside">
+              {coverage.missing.slice(0, 6).map((m) => (
+                <li key={m.id}>
+                  <span className="font-medium">{m.name}</span> needs {m.missing} more
+                  {' '}rating{m.missing === 1 ? '' : 's'}
+                </li>
+              ))}
+              {coverage.missing.length > 6 && (
+                <li>and {coverage.missing.length - 6} more</li>
+              )}
+            </ul>
+          </div>
+        )
+      )}
+
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900">Overall Leaderboard</h2>
+          <p className="text-sm text-gray-600 mt-1">
+            {basis === 'total'
+              ? 'Ranked by total overall points'
+              : 'Ranked by average overall score (provisional)'}
+          </p>
+        </div>
 
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
@@ -187,7 +227,10 @@ const Leaderboard = ({ results }) => {
                 Contestant
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Votes
+                Ratings
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Total
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Avg Score
@@ -207,7 +250,7 @@ const Leaderboard = ({ results }) => {
                       entry.rank === 2 ? 'text-gray-500' :
                       entry.rank === 3 ? 'text-orange-600' : 'text-gray-700'
                     }`}>
-                      #{entry.rank}
+                      {entry.tied ? `T-${entry.rank}` : `#${entry.rank}`}
                     </span>
                   </div>
                 </td>
@@ -241,9 +284,21 @@ const Leaderboard = ({ results }) => {
                   <div className="text-sm text-gray-900">{entry.contestant_name}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                    {entry.vote_count} vote{entry.vote_count === 1 ? '' : 's'}
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    entry.missing_votes > 0 ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'
+                  }`}>
+                    {coverage.expected_judges > 0
+                      ? `${entry.vote_count} of ${coverage.expected_judges}`
+                      : `${entry.vote_count} rating${entry.vote_count === 1 ? '' : 's'}`}
                   </span>
+                  {entry.missing_votes > 0 && (
+                    <div className="text-xs text-amber-700 mt-1">
+                      needs {entry.missing_votes} more
+                    </div>
+                  )}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className="text-lg font-bold text-gray-900">{entry.total_overall}</span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
@@ -266,6 +321,7 @@ const Leaderboard = ({ results }) => {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

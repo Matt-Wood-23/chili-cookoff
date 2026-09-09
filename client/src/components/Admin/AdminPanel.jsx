@@ -6,7 +6,7 @@ import PaperBallotEntry from './PaperBallotEntry';
 import JudgeCodes from './JudgeCodes';
 import ShareAccess from './ShareAccess';
 import LoadingSpinner from '../LoadingSpinner';
-import { configAPI } from '../../services/api';
+import { configAPI, resultsAPI } from '../../services/api';
 
 const AdminPanel = ({ chilis, config, serverInfo, onDataUpdate, onError }) => {
   const [activeTab, setActiveTab] = useState('add');
@@ -19,6 +19,24 @@ const AdminPanel = ({ chilis, config, serverInfo, onDataUpdate, onError }) => {
   const handleToggleVoting = async () => {
     try {
       const newStatus = !isVotingOpen;
+
+      // Closing is when the standings become the answer, so this is the moment
+      // to say which chilis nobody finished rating - while it is still fixable.
+      if (!newStatus) {
+        const { data } = await resultsAPI.getCoverage();
+        if (!data.complete && data.missing?.length > 0) {
+          const shortfall = data.missing
+            .map((m) => `  • ${m.name} — ${m.vote_count} of ${data.expected_judges} (needs ${m.missing} more)`)
+            .join('\n');
+          const proceed = confirm(
+            `Not every chili has been rated by all ${data.expected_judges} judges:\n\n${shortfall}\n\n` +
+            'Close voting anyway? Standings will stay provisional and be ranked by ' +
+            'average rather than total points.'
+          );
+          if (!proceed) return;
+        }
+      }
+
       await configAPI.updateKey('voting_open', newStatus.toString());
       setIsVotingOpen(newStatus);
       onDataUpdate();

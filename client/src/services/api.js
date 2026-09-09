@@ -213,6 +213,9 @@ export const resultsAPI = {
   
   // Get detailed results for specific chili
   getChiliResults: (id) => api.get(`/results/chili/${id}`),
+
+  // Which entries still need ratings, and from how many judges
+  getCoverage: () => api.get('/results/coverage'),
   
   // Export results as CSV
   exportCSV: () => api.get('/results/export/csv', { responseType: 'blob' })

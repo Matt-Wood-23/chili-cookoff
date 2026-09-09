@@ -24,7 +24,7 @@ Paper still works two ways: an organizer can key a scoresheet in from the admin 
 - One rating per judge per chili; re-rating from the same device corrects the earlier score
 
 **Results Dashboard**
-- Overall leaderboard with average scores and vote counts
+- Overall leaderboard with rating coverage, totals and averages
 - Per-category rankings (heat, flavor, texture, presentation, overall)
 - Event statistics — active judges, score distributions, category leaders
 - CSV export for post-event analysis
@@ -89,6 +89,34 @@ leaderboard stay public. Navigate to `/admin` directly, enter the token once
 under **Voting Controls → Admin Token**, and the link comes back on that device.
 
 This is a single shared password, not per-user accounts.
+
+## How the winner is decided
+
+Only the **overall** score places entries. Heat, flavor, texture and presentation
+are collected and shown, and drive the per-category rankings, but they do not
+affect who wins — heat especially, since a mild chili is not a worse chili.
+
+**Coverage decides which number is used.** The judge count is however many people
+have cast at least one vote, so it grows as latecomers arrive.
+
+- **Every chili rated by every judge** → ranked by **total points**. With equal
+  coverage the total and the average give the same order, and the total is the
+  nicer number to announce.
+- **Anything missing** → ranked by **average**, because a total would punish
+  whichever chili fewer people got to. The board says it is provisional and lists
+  what is short.
+
+Closing voting with gaps warns you first, naming each chili and how many ratings
+it still needs, and lets you proceed anyway.
+
+**Genuine ties share a place** — two entries on the same score both show `T-1`,
+and the next entry is `#3`. Break it with a taste-off rather than letting a sort
+order decide.
+
+One thing to watch: while coverage is incomplete the ranking is an average, so an
+entry with a single generous rating can sit near the top on very little evidence.
+The board flags exactly this — check the ratings column before calling a winner,
+or chase the missing ratings until coverage is complete.
 
 ## Judge codes
 
