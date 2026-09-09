@@ -19,6 +19,8 @@ Paper still works two ways: an organizer can key a scoresheet in from the admin 
 **Voting Interface**
 - Browse entries in a card grid with photos
 - Rate each chili on 5 categories (1-10 scale) with slider controls
+- Every category must be set before a rating can be submitted — nothing is
+  pre-filled, so an untouched form cannot be recorded as a deliberate score
 - Scan a paper scoresheet from inside the rating form to pre-fill scores (when OCR is available)
 - Remembers the judge's name and which entries they have rated
 - One rating per judge per chili; re-rating from the same device corrects the earlier score

@@ -5,54 +5,67 @@ import OCRUpload from './OCRUpload';
 // Defined at module scope on purpose. When this lived inside RatingForm it was
 // a fresh component type on every keystroke, so React unmounted and remounted
 // the slider mid-gesture and the drag died after a single step.
-const RatingSlider = ({ category, value, label, description, onChange, error, disabled }) => (
+const RatingSlider = ({ category, value, label, description, onChange, error, disabled }) => {
+  // A slider always has a thumb position, so an untouched one would otherwise
+  // look like a considered score. Park it mid-track, mute it, and show a dash
+  // until the judge actually sets it.
+  const isSet = value !== null && value !== undefined;
+
+  return (
     <div className="mb-6">
       <label className="block text-sm font-medium text-gray-700 mb-2">
         {label}
       </label>
       <p className="text-xs text-gray-500 mb-3">{description}</p>
-      
+
       <div className="flex items-center space-x-4">
         <input
           type="range"
           min="1"
           max="10"
-          value={value}
+          value={isSet ? value : 5}
           onChange={(e) => onChange(category, parseInt(e.target.value, 10))}
-          className="rating-slider flex-1"
+          className={`rating-slider flex-1 ${isSet ? '' : 'is-unset'}`}
+          aria-label={`${label}${isSet ? '' : ' — not rated yet'}`}
           disabled={disabled}
         />
-        
+
         <div className="flex items-center space-x-2">
-          <span className="text-lg font-bold text-gray-700 min-w-[2rem] text-center">
-            {value}
+          <span className={`text-lg font-bold min-w-[2rem] text-center ${
+            isSet ? 'text-gray-700' : 'text-gray-300'
+          }`}>
+            {isSet ? value : '—'}
           </span>
           <div className="text-xs text-gray-500">
-            {value <= 3 && '👎'}
-            {value >= 4 && value <= 7 && '👍'}
-            {value >= 8 && '🔥'}
+            {isSet && value <= 3 && '👎'}
+            {isSet && value >= 4 && value <= 7 && '👍'}
+            {isSet && value >= 8 && '🔥'}
           </div>
         </div>
       </div>
-      
+
       <div className="flex justify-between text-xs text-gray-400 mt-1">
         <span>1 (Poor)</span>
-        <span>10 (Excellent)</span>
+        <span>{isSet ? '10 (Excellent)' : 'Slide to rate'}</span>
       </div>
-      
+
       {error && (
         <p className="text-red-500 text-xs mt-1">{error}</p>
       )}
     </div>
   );
+};
 
 const RatingForm = ({ chili, judgeName, alreadyVoted, onSubmit, onClose, onError, loading, ocrAvailable }) => {
+  // Every score starts unset. Defaulting these to 5 meant a judge could open the
+  // form, submit without touching anything, and have it recorded as a
+  // deliberate 5 across the board.
   const [ratings, setRatings] = useState({
-    heat: 5,
-    flavor: 5,
-    texture: 5,
-    presentation: 5,
-    overall: 5,
+    heat: null,
+    flavor: null,
+    texture: null,
+    presentation: null,
+    overall: null,
     comments: ''
   });
 
@@ -65,6 +78,8 @@ const RatingForm = ({ chili, judgeName, alreadyVoted, onSubmit, onClose, onError
   // scores were silently discarded.
   useEffect(() => {
     if (!ocrData) return;
+    // A 0 means the model could not read that box, so leave it unset rather
+    // than inventing a score the judge never gave.
     setRatings((previous) => ({
       heat: ocrData.heat || previous.heat,
       flavor: ocrData.flavor || previous.flavor,
@@ -111,12 +126,18 @@ const RatingForm = ({ chili, judgeName, alreadyVoted, onSubmit, onClose, onError
     }));
   };
 
+  const missing = categories.filter(
+    (category) => !Number.isInteger(ratings[category.key])
+  );
+
   const validateForm = () => {
     const newErrors = {};
-    
-    categories.forEach(category => {
+
+    categories.forEach((category) => {
       const value = ratings[category.key];
-      if (!value || value < 1 || value > 10) {
+      if (!Number.isInteger(value)) {
+        newErrors[category.key] = 'Set a score for this before submitting';
+      } else if (value < 1 || value > 10) {
         newErrors[category.key] = 'Rating must be between 1 and 10';
       }
     });
@@ -221,6 +242,14 @@ const RatingForm = ({ chili, judgeName, alreadyVoted, onSubmit, onClose, onError
             ))}
           </div>
 
+          {missing.length > 0 && (
+            <p className="mt-6 text-sm text-gray-600">
+              Still to rate: <span className="font-medium text-gray-900">
+                {missing.map((category) => category.label.replace(/^\S+\s/, '')).join(', ')}
+              </span>
+            </p>
+          )}
+
           {/* Comments */}
           <div className="mt-8">
             <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -249,8 +278,8 @@ const RatingForm = ({ chili, judgeName, alreadyVoted, onSubmit, onClose, onError
             
             <button
               type="submit"
-              disabled={loading}
-              className="vote-button px-6 py-2 flex items-center space-x-2 disabled:opacity-50"
+              disabled={loading || missing.length > 0}
+              className="vote-button px-6 py-2 flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <>
@@ -262,7 +291,11 @@ const RatingForm = ({ chili, judgeName, alreadyVoted, onSubmit, onClose, onError
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
-                  <span>Submit Rating</span>
+                  <span>
+                    {missing.length > 0
+                      ? `${missing.length} left to rate`
+                      : 'Submit Rating'}
+                  </span>
                 </>
               )}
             </button>
