@@ -19,8 +19,9 @@ router.get('/', adminAuth, async (req, res) => {
   }
 });
 
-// GET /api/votes/chili/:id - Get votes for specific chili
-router.get('/chili/:id', async (req, res) => {
+// GET /api/votes/chili/:id - Get votes for specific chili (admin: same
+// per-judge detail as GET /, just scoped to one entry)
+router.get('/chili/:id', adminAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const votes = await req.db.all(`

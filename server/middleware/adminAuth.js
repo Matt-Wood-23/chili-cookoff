@@ -23,4 +23,12 @@ function adminAuth(req, res, next) {
 
 adminAuth.isEnabled = () => Boolean(ADMIN_TOKEN);
 
+// For endpoints that stay public but should withhold part of their payload
+// from guests, rather than reject the request outright.
+adminAuth.isAuthorized = (req) => {
+  if (!ADMIN_TOKEN) return true;
+  const header = req.get('Authorization') || '';
+  return header.startsWith('Bearer ') && header.slice(7) === ADMIN_TOKEN;
+};
+
 module.exports = adminAuth;

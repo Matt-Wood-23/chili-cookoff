@@ -1,4 +1,5 @@
 const express = require('express');
+const adminAuth = require('../middleware/adminAuth');
 const router = express.Router();
 
 // GET /api/results/leaderboard - Get overall rankings
@@ -232,9 +233,11 @@ router.get('/chili/:id', async (req, res) => {
       overall_stddev = Math.round(Math.sqrt(variance) * 100) / 100;
     }
 
+    // Aggregates are public; the per-judge breakdown is not, so guests get the
+    // scores without who gave them.
     res.json({
       chili: { ...chiliDetails, overall_stddev },
-      votes: individualVotes,
+      votes: adminAuth.isAuthorized(req) ? individualVotes : undefined,
       overall_rank: rankQuery.rank,
       lastUpdated: new Date().toISOString()
     });
