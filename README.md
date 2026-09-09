@@ -96,27 +96,29 @@ Only the **overall** score places entries. Heat, flavor, texture and presentatio
 are collected and shown, and drive the per-category rankings, but they do not
 affect who wins — heat especially, since a mild chili is not a worse chili.
 
-**Coverage decides which number is used.** The judge count is however many people
-have cast at least one vote, so it grows as latecomers arrive.
+**Entries are ranked by total overall points**, always. Ranking an incomplete
+board by average lets one generous rating outrank a chili twenty people scored
+well, and a wrong winner is worse than a chili placing lower because fewer people
+tried it. Under full coverage the two agree anyway, and the total is the nicer
+number to announce.
 
-- **Every chili rated by every judge** → ranked by **total points**. With equal
-  coverage the total and the average give the same order, and the total is the
-  nicer number to announce.
-- **Anything missing** → ranked by **average**, because a total would punish
-  whichever chili fewer people got to. The board says it is provisional and lists
-  what is short.
+The consequence to be aware of: until coverage is complete, an entry fewer people
+have reached scores lower than it otherwise would. That is the point at which you
+chase ratings rather than call a winner.
 
-Closing voting with gaps warns you first, naming each chili and how many ratings
-it still needs, and lets you proceed anyway.
+**Coverage is tracked so you can do that chasing.** The judge count is however
+many people have cast at least one vote, so it grows as latecomers arrive. Each
+entry shows `3 of 12 — needs 9 more`, the board lists everything outstanding, and
+closing voting with gaps warns you first, naming each chili and its shortfall,
+before letting you proceed.
 
 **Genuine ties share a place** — two entries on the same score both show `T-1`,
 and the next entry is `#3`. Break it with a taste-off rather than letting a sort
 order decide.
 
-One thing to watch: while coverage is incomplete the ranking is an average, so an
-entry with a single generous rating can sit near the top on very little evidence.
-The board flags exactly this — check the ratings column before calling a winner,
-or chase the missing ratings until coverage is complete.
+The average is still shown for every entry. It is interesting — it tells you
+whether a chili was loved by a few or liked by many — but it does not decide the
+winner.
 
 ## Judge codes
 

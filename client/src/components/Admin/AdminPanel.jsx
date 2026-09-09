@@ -30,8 +30,8 @@ const AdminPanel = ({ chilis, config, serverInfo, onDataUpdate, onError }) => {
             .join('\n');
           const proceed = confirm(
             `Not every chili has been rated by all ${data.expected_judges} judges:\n\n${shortfall}\n\n` +
-            'Close voting anyway? Standings will stay provisional and be ranked by ' +
-            'average rather than total points.'
+            'Close voting anyway? Entries that fewer people rated will score lower ' +
+            'than they otherwise would.'
           );
           if (!proceed) return;
         }

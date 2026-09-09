@@ -175,7 +175,7 @@ const Leaderboard = ({ results }) => {
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
             <p className="text-sm text-green-800">
               <span className="font-semibold">Every chili has been rated by all {coverage.expected_judges} judges.</span>{' '}
-              Ranked by total points — with full coverage that matches the average exactly.
+              Ranked by total points, on equal footing.
             </p>
           </div>
         ) : (
@@ -184,9 +184,9 @@ const Leaderboard = ({ results }) => {
               Not everyone has rated everything yet — these standings are provisional.
             </p>
             <p className="text-sm text-amber-800 mt-1">
-              Ranked by average, because totals would punish whichever chili fewer people
-              reached. An entry with only a rating or two can sit near the top on very
-              little evidence, so check the ratings column before calling a winner.
+              Ranked by total points, so an entry fewer people have tried is scoring
+              lower than it otherwise would. Get the ratings below filled in before
+              calling a winner.
             </p>
             <ul className="mt-2 text-sm text-amber-800 list-disc list-inside">
               {coverage.missing.slice(0, 6).map((m) => (
@@ -207,9 +207,7 @@ const Leaderboard = ({ results }) => {
         <div className="px-6 py-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">Overall Leaderboard</h2>
           <p className="text-sm text-gray-600 mt-1">
-            {basis === 'total'
-              ? 'Ranked by total overall points'
-              : 'Ranked by average overall score (provisional)'}
+            Ranked by total overall points{basis === 'total' && !coverage.complete ? ' (provisional)' : ''}
           </p>
         </div>
 

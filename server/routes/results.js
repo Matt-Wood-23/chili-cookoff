@@ -76,17 +76,15 @@ router.get('/leaderboard', async (req, res) => {
       HAVING vote_count > 0
     `);
 
-    // With every judge rating every chili, total and average give the same
-    // order, and the total is the nicer number to announce. When coverage is
-    // uneven the total would punish whichever chili fewer people reached, so
-    // fall back to the average and say so.
-    const basis = coverage.complete ? 'total' : 'average';
-    const scoreOf = (entry) =>
-      basis === 'total' ? entry.total_overall : entry.avg_overall;
+    // Total points, always. Ranking an incomplete board by average lets one
+    // generous rating outrank a chili twenty people scored well, and a wrong
+    // winner is worse than a chili placing lower because fewer people tried it.
+    // Under full coverage the two agree anyway.
+    const scoreOf = (entry) => entry.total_overall;
 
     rows.sort((a, b) =>
       scoreOf(b) - scoreOf(a) ||
-      b.vote_count - a.vote_count ||
+      b.avg_overall - a.avg_overall ||
       String(a.name).localeCompare(String(b.name))
     );
 
@@ -98,7 +96,7 @@ router.get('/leaderboard', async (req, res) => {
 
     res.json({
       leaderboard: rows,
-      ranking: { basis, complete: coverage.complete },
+      ranking: { basis: 'total', complete: coverage.complete },
       coverage,
       lastUpdated: new Date().toISOString()
     });
