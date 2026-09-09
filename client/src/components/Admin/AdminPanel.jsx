@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import AddChiliForm from './AddChiliForm';
 import ManageEntries from './ManageEntries';
 import VotingControls from './VotingControls';
+import PaperBallotEntry from './PaperBallotEntry';
 import LoadingSpinner from '../LoadingSpinner';
 import { configAPI } from '../../services/api';
 
-const AdminPanel = ({ chilis, config, onDataUpdate, onError }) => {
+const AdminPanel = ({ chilis, config, serverInfo, onDataUpdate, onError }) => {
   const [activeTab, setActiveTab] = useState('add');
   const [isVotingOpen, setIsVotingOpen] = useState(false);
 
@@ -19,15 +20,17 @@ const AdminPanel = ({ chilis, config, onDataUpdate, onError }) => {
       await configAPI.updateKey('voting_open', newStatus.toString());
       setIsVotingOpen(newStatus);
       onDataUpdate();
+      onError(newStatus ? 'Voting is now open' : 'Voting is now closed', 'success');
     } catch (error) {
       console.error('Failed to toggle voting status:', error);
-      onError('Failed to update voting status');
+      onError(error.response?.data?.error || 'Failed to update voting status');
     }
   };
 
   const tabs = [
     { id: 'add', label: 'Add Chili', icon: '🌶️' },
     { id: 'manage', label: 'Manage Entries', icon: '📝' },
+    { id: 'paper', label: 'Paper Ballots', icon: '🧾' },
     { id: 'voting', label: 'Voting Controls', icon: '🗳️' }
   ];
 
@@ -85,10 +88,19 @@ const AdminPanel = ({ chilis, config, onDataUpdate, onError }) => {
           />
         )}
 
+        {activeTab === 'paper' && (
+          <PaperBallotEntry
+            chilis={chilis}
+            onUpdate={() => onDataUpdate()}
+            onError={onError}
+          />
+        )}
+
         {activeTab === 'voting' && (
-          <VotingControls 
+          <VotingControls
             config={config}
             isVotingOpen={isVotingOpen}
+            adminTokenRequired={serverInfo?.admin_token_required}
             onToggleVoting={handleToggleVoting}
             onUpdate={() => onDataUpdate()}
             onError={onError}
