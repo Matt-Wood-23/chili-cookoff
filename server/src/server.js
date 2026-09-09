@@ -1,12 +1,13 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 const fs = require('fs');
 
 // Import services and routes
 const database = require('../services/database');
 const ollamaService = require('../services/ollama');
+const { uploadsDir } = require('../config/paths');
+const adminAuth = require('../middleware/adminAuth');
 
 // Import routes
 const chiliRoutes = require('../routes/chili');
@@ -14,43 +15,46 @@ const voteRoutes = require('../routes/votes');
 const ocrRoutes = require('../routes/ocr');
 const resultsRoutes = require('../routes/results');
 const configRoutes = require('../routes/config');
+const judgeCodeRoutes = require('../routes/judgeCodes');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
 
 // Middleware
+// Judges use their own phones, so the client is served from whatever LAN
+// address the organizer's laptop has. A fixed localhost allowlist blocked every
+// one of them. Default to reflecting the request origin; set CLIENT_ORIGINS to a
+// comma-separated list to lock it down.
+const allowedOrigins = (process.env.CLIENT_ORIGINS || '')
+  .split(',')
+  .map(o => o.trim())
+  .filter(Boolean);
+
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:5174', 
-    'http://localhost:5175',
-    'http://localhost:5176',
-    'http://localhost:5177',
-    'http://localhost:5178',
-    'http://localhost:5179'
-  ],
+  origin: allowedOrigins.length > 0 ? allowedOrigins : true,
   credentials: true
 }));
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// Static file serving
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-// Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, 'uploads');
+// Ensure the uploads directory exists before anything serves or writes to it
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
+// Static file serving
+app.use('/uploads', express.static(uploadsDir));
+
 // Health check endpoint
-app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'healthy', 
+app.get('/api/health', async (req, res) => {
+  res.json({
+    status: 'healthy',
     timestamp: new Date().toISOString(),
     server: 'Chili Cook-Off API',
-    version: '1.0.0'
+    version: '1.0.0',
+    ocr_available: await ollamaService.testConnection().catch(() => false),
+    admin_token_required: adminAuth.isEnabled()
   });
 });
 
@@ -67,6 +71,7 @@ app.use('/api/votes', voteRoutes);
 app.use('/api/ocr', ocrRoutes);
 app.use('/api/results', resultsRoutes);
 app.use('/api/config', configRoutes);
+app.use('/api/judge-codes', judgeCodeRoutes);
 
 // 404 handler
 app.use('/api/*', (req, res) => {
@@ -91,17 +96,17 @@ async function startServer() {
     
     console.log('✅ Database initialized successfully');
 
-    // Test Ollama connection (optional)
+    // Test Ollama connection (optional). This was commented out, so the server
+    // always claimed OCR was unavailable even when Ollama was running.
     try {
-      // const isConnected = await ollamaService.testConnection();
-      // if (isConnected) {
-      //   console.log('✅ Ollama OCR service is available');
-      // } else {
-      //   console.log('⚠️  Ollama OCR service is not available - OCR features will be disabled');
-      // }
-      console.log('✅ OCR features will be disabled (Ollama service not configured)');
+      const isConnected = await ollamaService.testConnection();
+      if (isConnected) {
+        console.log('✅ Ollama OCR service is available');
+      } else {
+        console.log('⚠️  Ollama not reachable - scoresheet OCR will be unavailable');
+      }
     } catch (error) {
-      console.log('⚠️  OCR features will be disabled:', error.message);
+      console.log('⚠️  Scoresheet OCR will be unavailable:', error.message);
     }
 
     // Start server
@@ -110,6 +115,9 @@ async function startServer() {
       console.log(`📱 Client URL: ${process.env.CLIENT_URL || 'http://localhost:5173'}`);
       console.log(`🔧 API Base URL: http://localhost:${PORT}/api`);
       console.log(`📁 Upload directory: ${uploadsDir}`);
+      if (!adminAuth.isEnabled()) {
+        console.log('⚠️  ADMIN_TOKEN is not set - admin endpoints are unprotected');
+      }
     });
 
   } catch (error) {

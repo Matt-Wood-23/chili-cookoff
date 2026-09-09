@@ -78,7 +78,17 @@ router.post('/process', upload.single('image'), async (req, res) => {
     
     // Process the image with Ollama
     const result = await req.ollama.processImageFile(req.file.buffer, chiliName);
-    
+
+    // extractScoresheetData swallows failures and returns all-zero scores, so
+    // report those as a failure instead of handing the judge silent defaults.
+    if (result.error) {
+      return res.status(502).json({
+        success: false,
+        error: 'Could not read the scoresheet',
+        message: result.error
+      });
+    }
+
     res.json({
       success: true,
       data: result,
@@ -118,7 +128,15 @@ router.post('/process-base64', async (req, res) => {
     
     // Process the image with Ollama
     const result = await req.ollama.extractScoresheetData(base64Data, chili_name || '');
-    
+
+    if (result.error) {
+      return res.status(502).json({
+        success: false,
+        error: 'Could not read the scoresheet',
+        message: result.error
+      });
+    }
+
     res.json({
       success: true,
       data: result,

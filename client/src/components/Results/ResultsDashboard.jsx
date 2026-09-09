@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { resultsAPI, utils } from '../../services/api';
+import React, { useState, useEffect, useCallback } from 'react';
+import { resultsAPI, utils, mediaUrl } from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 
 const ResultsDashboard = ({ chilis, config, onDataUpdate, onError }) => {
@@ -8,11 +8,7 @@ const ResultsDashboard = ({ chilis, config, onDataUpdate, onError }) => {
   const [results, setResults] = useState(null);
   const [category, setCategory] = useState('overall');
 
-  useEffect(() => {
-    loadResults();
-  }, [activeTab, category]);
-
-  const loadResults = async () => {
+  const loadResults = useCallback(async () => {
     setLoading(true);
     try {
       let response;
@@ -39,7 +35,11 @@ const ResultsDashboard = ({ chilis, config, onDataUpdate, onError }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTab, category, onError]);
+
+  useEffect(() => {
+    loadResults();
+  }, [loadResults]);
 
   const handleExportCSV = async () => {
     setLoading(true);
@@ -165,13 +165,60 @@ const Leaderboard = ({ results }) => {
   }
 
   const leaderboard = results.leaderboard;
+  const coverage = results.coverage || { expected_judges: 0, complete: false, missing: [] };
+  const ranking = results.ranking || {};
+  const isFinal = ranking.tally === 'final';
 
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-200">
-        <h2 className="text-lg font-semibold text-gray-900">Overall Leaderboard</h2>
-        <p className="text-sm text-gray-600 mt-1">Ranked by average overall score</p>
-      </div>
+    <div className="space-y-4">
+      {coverage.expected_judges > 0 && (
+        isFinal ? (
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+            <p className="text-sm text-green-800 font-semibold">
+              Final tally — every chili scored by the same {ranking.ballots_counted} judges.
+            </p>
+            <p className="text-sm text-green-800 mt-1">
+              Counts only judges who rated every entry, so the totals are directly
+              comparable.
+              {ranking.ballots_excluded > 0 && (
+                <> {ranking.ballots_excluded} part-finished ballot
+                  {ranking.ballots_excluded === 1 ? '' : 's'} left out.</>
+              )}
+            </p>
+          </div>
+        ) : (
+          <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+            <p className="text-sm text-amber-900 font-semibold">
+              Provisional — {coverage.qualified_judges} of {coverage.expected_judges} judges
+              have rated every chili.
+            </p>
+            <p className="text-sm text-amber-800 mt-1">
+              Until they have, this counts every rating cast, so a chili that a few
+              people happened to try can score out of proportion. It becomes a final
+              tally on complete ballots once the {coverage.expected_judges} are in.
+            </p>
+            <ul className="mt-2 text-sm text-amber-800 list-disc list-inside">
+              {coverage.missing.slice(0, 6).map((m) => (
+                <li key={m.id}>
+                  <span className="font-medium">{m.name}</span> needs {m.missing} more
+                  {' '}rating{m.missing === 1 ? '' : 's'}
+                </li>
+              ))}
+              {coverage.missing.length > 6 && (
+                <li>and {coverage.missing.length - 6} more</li>
+              )}
+            </ul>
+          </div>
+        )
+      )}
+
+      <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-200">
+          <h2 className="text-lg font-semibold text-gray-900">Overall Leaderboard</h2>
+          <p className="text-sm text-gray-600 mt-1">
+            Ranked by total overall points{isFinal ? '' : ' (provisional)'}
+          </p>
+        </div>
 
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
@@ -187,7 +234,10 @@ const Leaderboard = ({ results }) => {
                 Contestant
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Votes
+                Ratings
+              </th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Total
               </th>
               <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Avg Score
@@ -207,7 +257,7 @@ const Leaderboard = ({ results }) => {
                       entry.rank === 2 ? 'text-gray-500' :
                       entry.rank === 3 ? 'text-orange-600' : 'text-gray-700'
                     }`}>
-                      #{entry.rank}
+                      {entry.tied ? `T-${entry.rank}` : `#${entry.rank}`}
                     </span>
                   </div>
                 </td>
@@ -217,7 +267,7 @@ const Leaderboard = ({ results }) => {
                       {entry.image_path ? (
                         <img
                           className="h-10 w-10 rounded-full object-cover"
-                          src={`http://localhost:3001${entry.image_path}`}
+                          src={mediaUrl(entry.image_path)}
                           alt={entry.name}
                           onError={(e) => {
                             e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiNGM0Y0RjYiLz4KPHN2ZyB4PSI4IiB5PSI4IiB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSI+CjxwYXRoIGQ9Ik0xMiA4QzEwLjU4IDE4IDEwLjU4IDggMTIgOFoiIGZpbGw9IiM5Q0E0QUYiLz4KPC9zdmc+Cjwvc3ZnPg==';
@@ -241,9 +291,21 @@ const Leaderboard = ({ results }) => {
                   <div className="text-sm text-gray-900">{entry.contestant_name}</div>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                    {entry.vote_count} vote{entry.vote_count === 1 ? '' : 's'}
+                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                    entry.missing_votes > 0 ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'
+                  }`}>
+                    {coverage.expected_judges > 0
+                      ? `${entry.vote_count} of ${coverage.expected_judges}`
+                      : `${entry.vote_count} rating${entry.vote_count === 1 ? '' : 's'}`}
                   </span>
+                  {entry.missing_votes > 0 && (
+                    <div className="text-xs text-amber-700 mt-1">
+                      needs {entry.missing_votes} more
+                    </div>
+                  )}
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <span className="text-lg font-bold text-gray-900">{entry.total_overall}</span>
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
@@ -266,6 +328,7 @@ const Leaderboard = ({ results }) => {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
     </div>
   );

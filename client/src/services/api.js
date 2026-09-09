@@ -1,6 +1,80 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:3001/api';
+// Judges load this on their phones from the organizer's LAN address, where
+// "localhost" points at the phone itself. Derive the API host from wherever the
+// page was served and let VITE_API_URL override it for other setups.
+const SERVER_PORT = import.meta.env.VITE_API_PORT || '3001';
+
+export const SERVER_ORIGIN = (
+  import.meta.env.VITE_API_URL ||
+  `${window.location.protocol}//${window.location.hostname}:${SERVER_PORT}`
+).replace(/\/$/, '');
+
+const API_BASE_URL = `${SERVER_ORIGIN}/api`;
+
+// Build an absolute URL for a server-hosted upload (image_path is server-relative).
+export const mediaUrl = (imagePath) =>
+  imagePath ? `${SERVER_ORIGIN}${imagePath}` : null;
+
+// A stable per-browser id. Not identity and not a security control — it lets the
+// server tell "this judge is fixing their own score" apart from "a second person
+// with the same name", and lets the organizer spot one device rating under many
+// names. Shared phones are normal at these events, so it never blocks a vote.
+const DEVICE_ID_KEY = 'chiliDeviceId';
+
+export const getDeviceId = () => {
+  try {
+    let id = localStorage.getItem(DEVICE_ID_KEY);
+    if (!id) {
+      id = (crypto.randomUUID && crypto.randomUUID()) ||
+        `dev-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem(DEVICE_ID_KEY, id);
+    }
+    return id;
+  } catch {
+    // Private browsing with storage disabled: proceed without a device id.
+    return null;
+  }
+};
+
+// The judge's code for this event, kept so they enter it once per phone.
+const JUDGE_CODE_KEY = 'chiliJudgeCode';
+
+export const getJudgeCode = () => {
+  try {
+    return localStorage.getItem(JUDGE_CODE_KEY) || '';
+  } catch {
+    return '';
+  }
+};
+
+export const setJudgeCode = (code) => {
+  try {
+    if (code) localStorage.setItem(JUDGE_CODE_KEY, code);
+    else localStorage.removeItem(JUDGE_CODE_KEY);
+  } catch {
+    // Storage unavailable; the judge will re-enter it after a reload.
+  }
+};
+
+const ADMIN_TOKEN_KEY = 'chiliAdminToken';
+
+export const getAdminToken = () => {
+  try {
+    return localStorage.getItem(ADMIN_TOKEN_KEY) || '';
+  } catch {
+    return '';
+  }
+};
+
+export const setAdminToken = (token) => {
+  try {
+    if (token) localStorage.setItem(ADMIN_TOKEN_KEY, token);
+    else localStorage.removeItem(ADMIN_TOKEN_KEY);
+  } catch {
+    // Nothing to do if storage is unavailable.
+  }
+};
 
 // Create axios instance with default config
 const api = axios.create({
@@ -14,7 +88,21 @@ const api = axios.create({
 // Request interceptor to add auth if needed
 api.interceptors.request.use(
   (config) => {
-    // Add any auth headers here if needed
+    const deviceId = getDeviceId();
+    if (deviceId) {
+      config.headers['X-Device-Id'] = deviceId;
+    }
+
+    const judgeCode = getJudgeCode();
+    if (judgeCode) {
+      config.headers['X-Judge-Code'] = judgeCode;
+    }
+
+    const adminToken = getAdminToken();
+    if (adminToken) {
+      config.headers['Authorization'] = `Bearer ${adminToken}`;
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -97,6 +185,21 @@ export const ocrAPI = {
   getModels: () => api.get('/ocr/models')
 };
 
+// Judge Codes API
+export const judgeCodeAPI = {
+  // List all codes with usage (admin)
+  getAll: () => api.get('/judge-codes'),
+
+  // Generate a batch of codes (admin)
+  generate: (count, label) => api.post('/judge-codes', { count, label }),
+
+  // Revoke a code (admin)
+  revoke: (code) => api.delete(`/judge-codes/${code}`),
+
+  // Check a code before letting someone rate
+  validate: (code) => api.post('/judge-codes/validate', { code })
+};
+
 // Results API
 export const resultsAPI = {
   // Get overall leaderboard
@@ -110,6 +213,9 @@ export const resultsAPI = {
   
   // Get detailed results for specific chili
   getChiliResults: (id) => api.get(`/results/chili/${id}`),
+
+  // Which entries still need ratings, and from how many judges
+  getCoverage: () => api.get('/results/coverage'),
   
   // Export results as CSV
   exportCSV: () => api.get('/results/export/csv', { responseType: 'blob' })
@@ -128,15 +234,9 @@ export const configAPI = {
   
   // Update specific configuration key
   updateKey: (key, value) => api.put(`/config/${key}`, { value }),
-  
-  // Delete configuration key
-  delete: (key) => api.delete(`/config/${key}`),
-  
-  // Reset to defaults
-  reset: () => api.post('/config/reset'),
-  
-  // Get event status
-  getEventStatus: () => api.get('/config/event/status')
+
+  // LAN addresses this server is reachable on (fallback for the share panel)
+  getNetworkAddresses: () => api.get('/config/network/addresses')
 };
 
 // Health check

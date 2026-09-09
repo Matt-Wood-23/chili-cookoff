@@ -1,4 +1,5 @@
 import React from 'react';
+import { mediaUrl } from '../../services/api';
 
 const ChiliGrid = ({ chilis, votedChiliIds, onChiliSelect, isVotingOpen, judgeName }) => {
   if (!chilis || chilis.length === 0) {
@@ -6,7 +7,7 @@ const ChiliGrid = ({ chilis, votedChiliIds, onChiliSelect, isVotingOpen, judgeNa
       <div className="text-center py-12">
         <span className="text-6xl mb-4 block">🌶️</span>
         <h3 className="text-xl font-medium text-gray-900 mb-2">No Chili Entries Yet</h3>
-        <p className="text-gray-500">Chili entries will appear here once they're added by the admin.</p>
+        <p className="text-gray-500">Chili entries will appear here once they&rsquo;re added by the admin.</p>
       </div>
     );
   }
@@ -34,7 +35,7 @@ const ChiliGrid = ({ chilis, votedChiliIds, onChiliSelect, isVotingOpen, judgeNa
             <div className="aspect-w-16 aspect-h-12 bg-gray-200">
               {chili.image_path ? (
                 <img
-                  src={`http://localhost:3001${chili.image_path}`}
+                  src={mediaUrl(chili.image_path)}
                   alt={chili.name}
                   className="w-full h-48 object-cover"
                   onError={(e) => {
