@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { configAPI, voteAPI, resultsAPI, utils, getAdminToken, setAdminToken } from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 
-const VotingControls = ({ config, isVotingOpen, adminTokenRequired, onToggleVoting, onUpdate, onError }) => {
+const VotingControls = ({ config, isVotingOpen, adminTokenRequired, coverage, onToggleVoting, onUpdate, onError }) => {
   const [loading, setLoading] = useState(false);
   const [adminToken, setToken] = useState(getAdminToken);
+  const [expectedJudges, setExpectedJudges] = useState(config?.expected_judges || '');
   const [eventConfig, setEventConfig] = useState({
     event_name: config?.event_name || '',
     event_date: config?.event_date || '',
@@ -17,6 +18,28 @@ const VotingControls = ({ config, isVotingOpen, adminTokenRequired, onToggleVoti
       await onToggleVoting();
     } catch (error) {
       onError('Failed to toggle voting status');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSaveExpected = async (e) => {
+    e.preventDefault();
+    const raw = String(expectedJudges).trim();
+    if (raw && !(Number.isInteger(Number(raw)) && Number(raw) > 0)) {
+      return onError('Judge count must be a whole number above zero, or blank to work it out automatically');
+    }
+
+    setLoading(true);
+    try {
+      await configAPI.updateKey('expected_judges', raw);
+      onUpdate();
+      onError(
+        raw ? `Scoring against ${raw} judges` : 'Judge count will be worked out automatically',
+        'success'
+      );
+    } catch (error) {
+      onError(error.response?.data?.error || 'Failed to save judge count');
     } finally {
       setLoading(false);
     }
@@ -141,6 +164,61 @@ const VotingControls = ({ config, isVotingOpen, adminTokenRequired, onToggleVoti
             </button>
           </div>
         </div>
+      </div>
+
+      {/* How many judges the event scores against */}
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-2">Judges Expected</h3>
+        <p className="text-sm text-gray-600 mb-4">
+          Scoring is finished when this many judges have rated <em>every</em> chili.
+          Leave it blank to use the number of live judge codes, or the number of people
+          who have voted if you are not using codes.
+        </p>
+
+        <form onSubmit={handleSaveExpected} className="flex flex-wrap gap-3 items-end">
+          <div>
+            <label htmlFor="expectedJudges" className="block text-sm font-medium text-gray-700 mb-2">
+              Judges
+            </label>
+            <input
+              id="expectedJudges"
+              type="number"
+              min="1"
+              step="1"
+              value={expectedJudges}
+              onChange={(e) => setExpectedJudges(e.target.value)}
+              placeholder="auto"
+              disabled={loading}
+              className="w-28 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-chili-red"
+            />
+          </div>
+          <button type="submit" disabled={loading} className="admin-button disabled:opacity-50">
+            Save
+          </button>
+        </form>
+
+        {coverage && (
+          <div className={`mt-4 p-4 rounded-lg border ${
+            coverage.ready ? 'bg-green-50 border-green-200' : 'bg-gray-50 border-gray-200'
+          }`}>
+            <p className={`text-sm font-semibold ${coverage.ready ? 'text-green-800' : 'text-gray-900'}`}>
+              {coverage.ready
+                ? 'Scoring complete — the final tally is ready'
+                : `${coverage.qualified_judges} of ${coverage.expected_judges} judges have rated every chili`}
+            </p>
+            <p className="text-sm text-gray-600 mt-1">
+              {coverage.started_judges} {coverage.started_judges === 1 ? 'person has' : 'people have'} rated
+              something{coverage.partial_judges > 0
+                ? `, and ${coverage.partial_judges} of them ${coverage.partial_judges === 1 ? 'is' : 'are'} part-way through`
+                : ''}.
+              {' '}Counting {coverage.expected_source === 'manual'
+                ? 'the number you set'
+                : coverage.expected_source === 'codes'
+                  ? 'your live judge codes'
+                  : 'everyone who has voted'}.
+            </p>
+          </div>
+        )}
       </div>
 
       {adminTokenRequired && (

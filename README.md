@@ -106,17 +106,32 @@ The consequence to be aware of: until coverage is complete, an entry fewer peopl
 have reached scores lower than it otherwise would. That is the point at which you
 chase ratings rather than call a winner.
 
-**Coverage is tracked so you can do that chasing.** The judge count is however
-many people have cast at least one vote, so it grows as latecomers arrive — it
-does not count slips handed out to people who have not started. Each entry shows
-`3 of 12 — needs 9 more`, the board lists everything outstanding, and closing
-voting with gaps warns you first, naming each chili and its shortfall, before
-letting you proceed.
+### The final tally
 
-The admin panel shows the judge count and how many ratings are still outstanding
-across the whole event; **Results → Statistics** carries the same totals. With
-judge codes on, the **Judge Codes** tab separates codes that have been used from
-ones still unredeemed.
+Scoring finishes when a set number of judges have rated **every** chili. Set that
+number under **Admin → Voting Controls → Judges Expected**; leave it blank and it
+uses your live judge codes, or failing that everyone who has voted.
+
+Until then the board is **provisional** and counts every rating cast — which lets
+a chili that a handful of people happened to try score out of proportion. Once
+the target is met it becomes a **final tally** that counts only judges who rated
+every entry, so each chili carries an identical set of votes and the totals are
+directly comparable. Part-finished ballots are left out, and the board says how
+many.
+
+The difference is not cosmetic. With three judges who tasted everything and five
+who tried one chili each and scored it 10:
+
+| | Provisional (all ratings) | Final (complete ballots) |
+|---|---|---|
+| Verde | **71** from 8 votes | 21 from 3 votes |
+| Smoky Brisket | 27 from 3 votes | **27** from 3 votes |
+
+**Chasing what is outstanding.** Each entry shows `3 of 12 — needs 9 more`, the
+board lists everything short, and closing voting early warns you with the count
+of complete ballots first. The admin stats row carries the judge count and total
+outstanding; with judge codes on, the **Judge Codes** tab separates used codes
+from unredeemed ones.
 
 **Genuine ties share a place** — two entries on the same score both show `T-1`,
 and the next entry is `#3`. Break it with a taste-off rather than letting a sort

@@ -166,27 +166,36 @@ const Leaderboard = ({ results }) => {
 
   const leaderboard = results.leaderboard;
   const coverage = results.coverage || { expected_judges: 0, complete: false, missing: [] };
-  const basis = results.ranking?.basis || 'average';
+  const ranking = results.ranking || {};
+  const isFinal = ranking.tally === 'final';
 
   return (
     <div className="space-y-4">
       {coverage.expected_judges > 0 && (
-        coverage.complete ? (
+        isFinal ? (
           <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-            <p className="text-sm text-green-800">
-              <span className="font-semibold">Every chili has been rated by all {coverage.expected_judges} judges.</span>{' '}
-              Ranked by total points, on equal footing.
+            <p className="text-sm text-green-800 font-semibold">
+              Final tally — every chili scored by the same {ranking.ballots_counted} judges.
+            </p>
+            <p className="text-sm text-green-800 mt-1">
+              Counts only judges who rated every entry, so the totals are directly
+              comparable.
+              {ranking.ballots_excluded > 0 && (
+                <> {ranking.ballots_excluded} part-finished ballot
+                  {ranking.ballots_excluded === 1 ? '' : 's'} left out.</>
+              )}
             </p>
           </div>
         ) : (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
             <p className="text-sm text-amber-900 font-semibold">
-              Not everyone has rated everything yet — these standings are provisional.
+              Provisional — {coverage.qualified_judges} of {coverage.expected_judges} judges
+              have rated every chili.
             </p>
             <p className="text-sm text-amber-800 mt-1">
-              Ranked by total points, so an entry fewer people have tried is scoring
-              lower than it otherwise would. Get the ratings below filled in before
-              calling a winner.
+              Until they have, this counts every rating cast, so a chili that a few
+              people happened to try can score out of proportion. It becomes a final
+              tally on complete ballots once the {coverage.expected_judges} are in.
             </p>
             <ul className="mt-2 text-sm text-amber-800 list-disc list-inside">
               {coverage.missing.slice(0, 6).map((m) => (
@@ -207,7 +216,7 @@ const Leaderboard = ({ results }) => {
         <div className="px-6 py-4 border-b border-gray-200">
           <h2 className="text-lg font-semibold text-gray-900">Overall Leaderboard</h2>
           <p className="text-sm text-gray-600 mt-1">
-            Ranked by total overall points{basis === 'total' && !coverage.complete ? ' (provisional)' : ''}
+            Ranked by total overall points{isFinal ? '' : ' (provisional)'}
           </p>
         </div>
 

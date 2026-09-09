@@ -20,12 +20,51 @@ function applyRanks(entries, scoreOf) {
   return entries;
 }
 
-// How many people are actually judging: everyone who has cast at least one
-// vote. Self-adjusting, so latecomers raise the bar and printed-but-unused
-// judge codes do not.
+// How many judges the event is scored against.
+//
+// Set it explicitly and "done" becomes a target you reach; leave it blank and it
+// is inferred, preferring the number of live judge codes over the number of
+// people who happen to have voted so far - the latter moves as people arrive,
+// so nothing ever looks finished.
+async function getExpectedJudges(db) {
+  const configured = Number(await db.getConfigValue('expected_judges'));
+  if (Number.isInteger(configured) && configured > 0) {
+    return { expected: configured, source: 'manual' };
+  }
+
+  const { codes } = await db.get(
+    'SELECT COUNT(*) as codes FROM judge_codes WHERE revoked = 0'
+  );
+  if (codes > 0) {
+    return { expected: codes, source: 'codes' };
+  }
+
+  const { voters } = await db.get(
+    'SELECT COUNT(DISTINCT voter_key) as voters FROM votes'
+  );
+  return { expected: voters, source: 'voters' };
+}
+
 async function getCoverage(db) {
-  const { expected } = await db.get(
-    'SELECT COUNT(DISTINCT voter_key) as expected FROM votes'
+  const { expected, source } = await getExpectedJudges(db);
+
+  const { chili_count: chiliCount } = await db.get(
+    'SELECT COUNT(*) as chili_count FROM chilis'
+  );
+
+  // A ballot is complete when that judge has rated every entry. Scoring on
+  // these alone is what makes every chili carry an identical set of votes.
+  const qualified = chiliCount > 0
+    ? await db.all(`
+        SELECT voter_key, MIN(judge_name) as judge_name
+        FROM votes
+        GROUP BY voter_key
+        HAVING COUNT(DISTINCT chili_id) = ?
+      `, [chiliCount])
+    : [];
+
+  const { voters: started } = await db.get(
+    'SELECT COUNT(DISTINCT voter_key) as voters FROM votes'
   );
 
   const perChili = await db.all(`
@@ -42,8 +81,17 @@ async function getCoverage(db) {
         .map((c) => ({ ...c, missing: expected - c.vote_count }))
     : [];
 
+  const qualifiedCount = qualified.length;
+
   return {
     expected_judges: expected,
+    expected_source: source,
+    qualified_judges: qualifiedCount,
+    started_judges: started,
+    partial_judges: Math.max(0, started - qualifiedCount),
+    chili_count: chiliCount,
+    // Scoring is finished when enough judges have completed the whole slate.
+    ready: expected > 0 && chiliCount > 0 && qualifiedCount >= expected,
     complete: expected > 0 && missing.length === 0,
     missing
   };
@@ -53,6 +101,21 @@ async function getCoverage(db) {
 router.get('/leaderboard', async (req, res) => {
   try {
     const coverage = await getCoverage(req.db);
+
+    // Final tally counts only judges who rated every entry, so each chili is
+    // scored by an identical set of people. Anything else is provisional.
+    const requested = String(req.query.tally || '').toLowerCase();
+    const tally = requested === 'all' || (requested !== 'final' && !coverage.ready)
+      ? 'all'
+      : 'final';
+
+    const ballotFilter = tally === 'final'
+      ? `AND v.voter_key IN (
+           SELECT voter_key FROM votes
+           GROUP BY voter_key
+           HAVING COUNT(DISTINCT chili_id) = (SELECT COUNT(*) FROM chilis)
+         )`
+      : '';
 
     const rows = await req.db.all(`
       SELECT 
@@ -71,7 +134,7 @@ router.get('/leaderboard', async (req, res) => {
         MAX(v.overall) as highest_overall,
         MIN(v.overall) as lowest_overall
       FROM chilis c
-      LEFT JOIN votes v ON c.id = v.chili_id
+      LEFT JOIN votes v ON c.id = v.chili_id ${ballotFilter}
       GROUP BY c.id
       HAVING vote_count > 0
     `);
@@ -96,7 +159,14 @@ router.get('/leaderboard', async (req, res) => {
 
     res.json({
       leaderboard: rows,
-      ranking: { basis: 'total', complete: coverage.complete },
+      ranking: {
+        basis: 'total',
+        tally,
+        complete: coverage.complete,
+        // In a final tally every chili carries exactly this many votes.
+        ballots_counted: tally === 'final' ? coverage.qualified_judges : coverage.started_judges,
+        ballots_excluded: tally === 'final' ? coverage.partial_judges : 0
+      },
       coverage,
       lastUpdated: new Date().toISOString()
     });

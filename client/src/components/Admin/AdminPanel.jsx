@@ -25,7 +25,7 @@ const AdminPanel = ({ chilis, config, serverInfo, onDataUpdate, onError }) => {
       .then(({ data }) => { if (!cancelled) setCoverage(data); })
       .catch(() => { /* advisory only; the panel works without it */ });
     return () => { cancelled = true; };
-  }, [chilis]);
+  }, [chilis, config]);
 
   const handleToggleVoting = async () => {
     try {
@@ -35,14 +35,15 @@ const AdminPanel = ({ chilis, config, serverInfo, onDataUpdate, onError }) => {
       // to say which chilis nobody finished rating - while it is still fixable.
       if (!newStatus) {
         const { data } = await resultsAPI.getCoverage();
-        if (!data.complete && data.missing?.length > 0) {
-          const shortfall = data.missing
+        if (!data.ready) {
+          const shortfall = (data.missing || [])
             .map((m) => `  • ${m.name} — ${m.vote_count} of ${data.expected_judges} (needs ${m.missing} more)`)
             .join('\n');
           const proceed = confirm(
-            `Not every chili has been rated by all ${data.expected_judges} judges:\n\n${shortfall}\n\n` +
-            'Close voting anyway? Entries that fewer people rated will score lower ' +
-            'than they otherwise would.'
+            `Only ${data.qualified_judges} of ${data.expected_judges} judges have rated every chili.\n\n` +
+            (shortfall ? `${shortfall}\n\n` : '') +
+            'Close voting anyway? Without a full set of ballots the standings stay ' +
+            'provisional, counting every rating cast rather than a matched set.'
           );
           if (!proceed) return;
         }
@@ -150,6 +151,7 @@ const AdminPanel = ({ chilis, config, serverInfo, onDataUpdate, onError }) => {
             config={config}
             isVotingOpen={isVotingOpen}
             adminTokenRequired={serverInfo?.admin_token_required}
+            coverage={coverage}
             onToggleVoting={handleToggleVoting}
             onUpdate={() => onDataUpdate()}
             onError={onError}

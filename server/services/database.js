@@ -104,7 +104,8 @@ class Database {
         ('event_name', 'Chili Cook-Off 2025'),
         ('event_date', '2025-11-04'),
         ('event_location', 'Community Center'),
-        ('require_judge_code', 'false')
+        ('require_judge_code', 'false'),
+        ('expected_judges', '')
       `);
 
       await this.migrate();
