@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import ChiliGrid from './ChiliGrid';
 import RatingForm from './RatingForm';
+import JudgeCodeEntry from './JudgeCodeEntry';
 import LoadingSpinner from '../LoadingSpinner';
-import { voteAPI } from '../../services/api';
+import { voteAPI, getJudgeCode, setJudgeCode } from '../../services/api';
 
 // Judges rate one chili after another on a phone, so their name and their
 // progress have to survive re-renders, reloads, and a dropped wifi connection.
@@ -29,9 +30,11 @@ const VoterInterface = ({ chilis, config, ocrAvailable, onDataUpdate, onError })
     }
   });
   const [votedChiliIds, setVotedChiliIds] = useState(readVotedIds);
+  const [judgeCode, setCode] = useState(getJudgeCode);
   const [loading, setLoading] = useState(false);
 
   const isVotingOpen = config?.voting_open === 'true';
+  const codeRequired = config?.require_judge_code === 'true';
 
   // Remember the judge across reloads. The old flow wiped the name a second
   // after every submission, so judges retyped it for each entry.
@@ -61,7 +64,7 @@ const VoterInterface = ({ chilis, config, ocrAvailable, onDataUpdate, onError })
       onError('Voting is currently closed');
       return;
     }
-    if (!judgeName.trim()) {
+    if (!codeRequired && !judgeName.trim()) {
       onError('Please enter your judge name first');
       return;
     }
@@ -70,7 +73,7 @@ const VoterInterface = ({ chilis, config, ocrAvailable, onDataUpdate, onError })
   };
 
   const handleRatingSubmit = async (ratings) => {
-    if (!selectedChili || !judgeName.trim()) {
+    if (!selectedChili || (!codeRequired && !judgeName.trim())) {
       onError('Missing required information');
       return;
     }
@@ -110,6 +113,15 @@ const VoterInterface = ({ chilis, config, ocrAvailable, onDataUpdate, onError })
     );
   }
 
+  if (codeRequired && !judgeCode) {
+    return (
+      <JudgeCodeEntry
+        eventName={config?.event_name}
+        onVerified={(verified) => setCode(verified)}
+      />
+    );
+  }
+
   const remaining = chilis.length - votedChiliIds.filter(
     (id) => chilis.some((chili) => chili.id === id)
   ).length;
@@ -136,9 +148,23 @@ const VoterInterface = ({ chilis, config, ocrAvailable, onDataUpdate, onError })
       {isVotingOpen && (
         <div className="mb-8 bg-white p-6 rounded-lg shadow">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Judge Information</h2>
+          {codeRequired && (
+            <div className="mb-4 flex flex-wrap items-center gap-3">
+              <span className="inline-flex items-center px-3 py-1 rounded-full bg-green-100 text-green-800 text-sm font-mono tracking-widest">
+                {judgeCode}
+              </span>
+              <button
+                type="button"
+                onClick={() => { setJudgeCode(''); setCode(''); }}
+                className="text-xs text-gray-500 underline hover:text-chili-red"
+              >
+                Not your code?
+              </button>
+            </div>
+          )}
           <div className="max-w-md">
             <label htmlFor="judgeName" className="block text-sm font-medium text-gray-700 mb-2">
-              Your Name *
+              {codeRequired ? 'Your Name (optional)' : 'Your Name *'}
             </label>
             <input
               type="text"
@@ -150,15 +176,16 @@ const VoterInterface = ({ chilis, config, ocrAvailable, onDataUpdate, onError })
               required
             />
             <p className="mt-2 text-xs text-gray-500">
-              Saved on this device, so you only enter it once. If someone shares your
-              first name, add a last initial.
+              {codeRequired
+                ? 'Your code already identifies you. A name just makes the results nicer to read.'
+                : 'Saved on this device, so you only enter it once. If someone shares your first name, add a last initial.'}
             </p>
           </div>
         </div>
       )}
 
       {/* Progress */}
-      {isVotingOpen && judgeName.trim() && chilis.length > 0 && (
+      {isVotingOpen && (codeRequired || judgeName.trim()) && chilis.length > 0 && (
         <div className="mb-8 p-4 bg-white rounded-lg shadow flex items-center justify-between">
           <span className="text-sm text-gray-600">
             Rated <span className="font-semibold text-gray-900">{chilis.length - remaining}</span> of{' '}
@@ -176,7 +203,7 @@ const VoterInterface = ({ chilis, config, ocrAvailable, onDataUpdate, onError })
         votedChiliIds={votedChiliIds}
         onChiliSelect={handleChiliSelect}
         isVotingOpen={isVotingOpen}
-        judgeName={judgeName.trim()}
+        judgeName={codeRequired ? (judgeName.trim() || judgeCode) : judgeName.trim()}
       />
 
       {/* Rating Form Modal */}

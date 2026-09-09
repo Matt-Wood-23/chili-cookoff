@@ -72,6 +72,37 @@ body {
   @apply bg-gradient-to-r from-orange-400 to-orange-600 text-white;
 }
 
+/* Printing judge-code slips: drop the app chrome so the sheet is just slips. */
+@media print {
+  body {
+    background: #fff;
+  }
+
+  header,
+  nav,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  .print-slips {
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+
+  .print-slips > div {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 0 !important;
+  }
+
+  .print-slips > div > div {
+    border: 1px dashed #999 !important;
+    border-radius: 0 !important;
+    padding: 1.1rem 0.5rem !important;
+    break-inside: avoid;
+  }
+}
+
 /* Responsive design helpers */
 @media (max-width: 640px) {
   .chili-grid {

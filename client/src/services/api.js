@@ -37,6 +37,26 @@ export const getDeviceId = () => {
   }
 };
 
+// The judge's code for this event, kept so they enter it once per phone.
+const JUDGE_CODE_KEY = 'chiliJudgeCode';
+
+export const getJudgeCode = () => {
+  try {
+    return localStorage.getItem(JUDGE_CODE_KEY) || '';
+  } catch {
+    return '';
+  }
+};
+
+export const setJudgeCode = (code) => {
+  try {
+    if (code) localStorage.setItem(JUDGE_CODE_KEY, code);
+    else localStorage.removeItem(JUDGE_CODE_KEY);
+  } catch {
+    // Storage unavailable; the judge will re-enter it after a reload.
+  }
+};
+
 const ADMIN_TOKEN_KEY = 'chiliAdminToken';
 
 export const getAdminToken = () => {
@@ -71,6 +91,11 @@ api.interceptors.request.use(
     const deviceId = getDeviceId();
     if (deviceId) {
       config.headers['X-Device-Id'] = deviceId;
+    }
+
+    const judgeCode = getJudgeCode();
+    if (judgeCode) {
+      config.headers['X-Judge-Code'] = judgeCode;
     }
 
     const adminToken = getAdminToken();
@@ -158,6 +183,21 @@ export const ocrAPI = {
   
   // Get available models
   getModels: () => api.get('/ocr/models')
+};
+
+// Judge Codes API
+export const judgeCodeAPI = {
+  // List all codes with usage (admin)
+  getAll: () => api.get('/judge-codes'),
+
+  // Generate a batch of codes (admin)
+  generate: (count, label) => api.post('/judge-codes', { count, label }),
+
+  // Revoke a code (admin)
+  revoke: (code) => api.delete(`/judge-codes/${code}`),
+
+  // Check a code before letting someone rate
+  validate: (code) => api.post('/judge-codes/validate', { code })
 };
 
 // Results API

@@ -1,12 +1,18 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { getAdminToken } from '../services/api';
 
-const Header = ({ config, currentView, onViewChange }) => {
+const Header = ({ config, currentView, onViewChange, adminTokenRequired }) => {
   const location = useLocation();
-  
+
+  // Once the event runs with a token, guests should not see an Admin tab
+  // inviting them in. Navigating to /admin directly still works, which is how
+  // the organizer gets in the first time to enter the token.
+  const showAdminLink = !adminTokenRequired || Boolean(getAdminToken());
+
   const navItems = [
     { path: '/', label: 'Vote', key: 'voter' },
-    { path: '/admin', label: 'Admin', key: 'admin' },
+    ...(showAdminLink ? [{ path: '/admin', label: 'Admin', key: 'admin' }] : []),
     { path: '/results', label: 'Results', key: 'results' }
   ];
 

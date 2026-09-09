@@ -8,6 +8,14 @@ function judgeKey(name) {
   return String(name || '').trim().toLowerCase().replace(/\s+/g, ' ');
 }
 
+// The single identity a vote is unique on. Name-based and code-based events
+// share one column so constraints and stats never have to branch on mode.
+function voterKey({ judgeCode, judgeName }) {
+  return judgeCode
+    ? `code:${String(judgeCode).trim().toUpperCase()}`
+    : `name:${judgeKey(judgeName)}`;
+}
+
 class Database {
   constructor() {
     this.db = null;
@@ -54,6 +62,8 @@ class Database {
           chili_id INTEGER NOT NULL,
           judge_name TEXT NOT NULL,
           judge_key TEXT,
+          judge_code TEXT,
+          voter_key TEXT,
           device_id TEXT,
           heat INTEGER NOT NULL CHECK(heat >= 1 AND heat <= 10),
           flavor INTEGER NOT NULL CHECK(flavor >= 1 AND flavor <= 10),
@@ -63,6 +73,19 @@ class Database {
           comments TEXT,
           created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
           FOREIGN KEY (chili_id) REFERENCES chilis (id) ON DELETE CASCADE
+        )
+      `);
+
+      // Pre-issued judge codes. Anonymous by design: a code is a ballot, not a
+      // person, so no names live here unless the organizer labels one.
+      await this.run(`
+        CREATE TABLE IF NOT EXISTS judge_codes (
+          code TEXT PRIMARY KEY,
+          label TEXT,
+          created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+          first_used_at DATETIME,
+          device_id TEXT,
+          revoked INTEGER NOT NULL DEFAULT 0
         )
       `);
 
@@ -80,7 +103,8 @@ class Database {
         ('voting_open', 'false'),
         ('event_name', 'Chili Cook-Off 2025'),
         ('event_date', '2025-11-04'),
-        ('event_location', 'Community Center')
+        ('event_location', 'Community Center'),
+        ('require_judge_code', 'false')
       `);
 
       await this.migrate();
@@ -104,6 +128,12 @@ class Database {
     if (!names.includes('device_id')) {
       await this.run('ALTER TABLE votes ADD COLUMN device_id TEXT');
     }
+    if (!names.includes('judge_code')) {
+      await this.run('ALTER TABLE votes ADD COLUMN judge_code TEXT');
+    }
+    if (!names.includes('voter_key')) {
+      await this.run('ALTER TABLE votes ADD COLUMN voter_key TEXT');
+    }
 
     // Backfill the normalized key for any rows predating the column.
     const unkeyed = await this.all(
@@ -113,19 +143,29 @@ class Database {
       await this.run('UPDATE votes SET judge_key = ? WHERE id = ?', [judgeKey(row.judge_name), row.id]);
     }
 
+    // Derive the canonical identity for rows written before voter_key existed.
+    await this.run(`
+      UPDATE votes
+      SET voter_key = CASE
+        WHEN judge_code IS NOT NULL AND judge_code <> '' THEN 'code:' || UPPER(judge_code)
+        ELSE 'name:' || COALESCE(judge_key, '')
+      END
+      WHERE voter_key IS NULL OR voter_key = ''
+    `);
+
     // A unique index cannot be created while duplicates exist. Keep each
     // judge's first vote per chili and drop the rest, reporting what went.
     const duplicates = await this.all(`
       SELECT id FROM votes
       WHERE id NOT IN (
-        SELECT MIN(id) FROM votes GROUP BY chili_id, judge_key
+        SELECT MIN(id) FROM votes GROUP BY chili_id, voter_key
       )
     `);
     if (duplicates.length > 0) {
       await this.run(`
         DELETE FROM votes
         WHERE id NOT IN (
-          SELECT MIN(id) FROM votes GROUP BY chili_id, judge_key
+          SELECT MIN(id) FROM votes GROUP BY chili_id, voter_key
         )
       `);
       console.log(`Removed ${duplicates.length} duplicate vote(s) so one vote per judge per chili can be enforced`);
@@ -148,8 +188,11 @@ class Database {
       console.log('Rebuilt votes table to add the missing foreign key');
     }
 
+    // Supersede the name-only index: a code-based event has two judges who may
+    // both type "Matt", and only the code distinguishes them.
+    await this.run('DROP INDEX IF EXISTS idx_votes_chili_judge');
     await this.run(
-      'CREATE UNIQUE INDEX IF NOT EXISTS idx_votes_chili_judge ON votes (chili_id, judge_key)'
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_votes_chili_voter ON votes (chili_id, voter_key)'
     );
   }
 
@@ -165,6 +208,8 @@ class Database {
           chili_id INTEGER NOT NULL,
           judge_name TEXT NOT NULL,
           judge_key TEXT,
+          judge_code TEXT,
+          voter_key TEXT,
           device_id TEXT,
           heat INTEGER NOT NULL CHECK(heat >= 1 AND heat <= 10),
           flavor INTEGER NOT NULL CHECK(flavor >= 1 AND flavor <= 10),
@@ -178,8 +223,8 @@ class Database {
       `);
       await this.run(`
         INSERT INTO votes_rebuilt
-          (id, chili_id, judge_name, judge_key, device_id, heat, flavor, texture, presentation, overall, comments, created_at)
-        SELECT id, chili_id, judge_name, judge_key, device_id, heat, flavor, texture, presentation, overall, comments, created_at
+          (id, chili_id, judge_name, judge_key, judge_code, voter_key, device_id, heat, flavor, texture, presentation, overall, comments, created_at)
+        SELECT id, chili_id, judge_name, judge_key, judge_code, voter_key, device_id, heat, flavor, texture, presentation, overall, comments, created_at
         FROM votes
       `);
       await this.run('DROP TABLE votes');
@@ -305,3 +350,4 @@ class Database {
 
 module.exports = new Database();
 module.exports.judgeKey = judgeKey;
+module.exports.voterKey = voterKey;

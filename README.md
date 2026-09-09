@@ -12,6 +12,7 @@ Paper still works two ways: an organizer can key a scoresheet in from the admin 
 - Add chili entries with contestant name, description, and photo
 - Edit/delete entries with live vote counts
 - Enter paper ballots on a judge's behalf
+- Generate, print and revoke judge codes
 - Toggle voting open/closed
 - Configure event name, date, and location
 
@@ -74,15 +75,48 @@ API lives elsewhere (see `client/.env.example`).
 
 ### Protecting the admin panel
 
-Admin endpoints are open by default, which is fine on a private laptop. To
-require a shared password, start the server with one:
+Admin endpoints are open by default, which is fine on a private laptop. **Set a
+token for any event where guests are on the same network** — otherwise anyone
+who opens the app can close voting or clear every vote:
 
 ```bash
 ADMIN_TOKEN=your-secret npm run dev
 ```
 
-Then enter that value once under **Admin → Voting Controls → Admin Token**. This
-is a single shared password, not per-user accounts.
+With a token set, the Admin link disappears from the nav for everyone, and the
+per-judge vote list (`GET /api/votes`) requires it. Aggregate results and the
+leaderboard stay public. Navigate to `/admin` directly, enter the token once
+under **Voting Controls → Admin Token**, and the link comes back on that device.
+
+This is a single shared password, not per-user accounts.
+
+## Judge codes
+
+Optional, off by default. When on, a judge needs a code from a printed slip
+before they can rate anything — which closes the one hole name-based voting
+leaves open: someone deliberately voting twice under two different names.
+
+**Running it:** Admin → Judge Codes → generate a batch → **Print Slips** → cut
+them up and put them in a bowl by the food. Then flip **Require Codes to Vote**.
+Generate more than you expect; latecomers and lost slips are the usual reason to
+reprint. Printing only ever gives you codes nobody has used yet.
+
+Codes are four characters from an alphabet with no `I`, `L`, `O`, `0` or `1`,
+because they get read off paper and typed on a phone.
+
+**A code is a ballot, not a person.** Nothing identifies who holds it, and no
+names are stored unless a judge optionally types one for the results. Details:
+
+- One code rates every entry — it is an identity, not a single-use ticket.
+- Re-rating under the same code corrects the earlier score instead of adding a
+  second vote.
+- Two judges who both type "Matt" are no longer a conflict; their codes tell
+  them apart, so the "add a last initial" prompt disappears.
+- A code works from any phone. First use is recorded, and reuse elsewhere is
+  visible to the admin but never blocked, because people hand each other phones.
+- Revoking a code stops further use; votes already cast under it stay counted.
+
+Turning codes off returns to name-based voting with everything intact.
 
 ### OCR (optional)
 
@@ -100,8 +134,9 @@ paper-ballot form is the dependable path.
 
 ## Vote integrity
 
-Each judge gets one rating per chili, enforced on a normalized name
-(`Matt W`, `matt  w` and ` MATT W ` are the same judge):
+Each judge gets one rating per chili. Without codes this is enforced on a
+normalized name (`Matt W`, `matt  w` and ` MATT W ` are the same judge); with
+codes it is enforced on the code:
 
 - Re-rating from the same device replaces the earlier score, so a judge can fix
   a mistake without inflating the vote count.
@@ -134,17 +169,18 @@ ChiliCookoff/
     ├── src/server.js           # Express app setup
     ├── config/paths.js         # Upload and database locations
     ├── middleware/adminAuth.js # Optional shared-secret gate
-    ├── routes/                 # chili, votes, results, ocr, config
+    ├── routes/                 # chili, votes, results, ocr, config, judgeCodes
     └── services/
         ├── database.js         # SQLite schema, migrations, queries
         └── ollama.js           # Vision model integration
 ```
 
 The server migrates its own database on boot: it adds the columns and unique
-index that one-vote-per-judge needs, collapses pre-existing duplicate votes to
-the earliest one, removes votes orphaned by deleted entries, and rebuilds the
-votes table if it predates the foreign key. Safe to run against a database from
-a previous event.
+index that one-vote-per-judge needs, backfills the `voter_key` identity every
+vote is unique on, collapses pre-existing duplicate votes to the earliest one,
+removes votes orphaned by deleted entries, and rebuilds the votes table if it
+predates the foreign key. Safe to run against a database from a previous event —
+but back it up first, since the duplicate collapse deletes rows.
 
 ## License
 

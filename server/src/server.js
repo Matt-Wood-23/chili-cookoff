@@ -15,6 +15,7 @@ const voteRoutes = require('../routes/votes');
 const ocrRoutes = require('../routes/ocr');
 const resultsRoutes = require('../routes/results');
 const configRoutes = require('../routes/config');
+const judgeCodeRoutes = require('../routes/judgeCodes');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -70,6 +71,7 @@ app.use('/api/votes', voteRoutes);
 app.use('/api/ocr', ocrRoutes);
 app.use('/api/results', resultsRoutes);
 app.use('/api/config', configRoutes);
+app.use('/api/judge-codes', judgeCodeRoutes);
 
 // 404 handler
 app.use('/api/*', (req, res) => {

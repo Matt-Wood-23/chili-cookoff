@@ -3,6 +3,7 @@ import AddChiliForm from './AddChiliForm';
 import ManageEntries from './ManageEntries';
 import VotingControls from './VotingControls';
 import PaperBallotEntry from './PaperBallotEntry';
+import JudgeCodes from './JudgeCodes';
 import LoadingSpinner from '../LoadingSpinner';
 import { configAPI } from '../../services/api';
 
@@ -31,6 +32,7 @@ const AdminPanel = ({ chilis, config, serverInfo, onDataUpdate, onError }) => {
     { id: 'add', label: 'Add Chili', icon: '🌶️' },
     { id: 'manage', label: 'Manage Entries', icon: '📝' },
     { id: 'paper', label: 'Paper Ballots', icon: '🧾' },
+    { id: 'codes', label: 'Judge Codes', icon: '🎟️' },
     { id: 'voting', label: 'Voting Controls', icon: '🗳️' }
   ];
 
@@ -44,14 +46,14 @@ const AdminPanel = ({ chilis, config, serverInfo, onDataUpdate, onError }) => {
 
   return (
     <div className="max-w-7xl mx-auto">
-      <div className="mb-8">
+      <div className="mb-8 print:hidden">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Admin Panel</h1>
         <p className="text-gray-600">Manage your chili cook-off event</p>
       </div>
 
       {/* Tab Navigation */}
-      <div className="border-b border-gray-200 mb-8">
-        <nav className="-mb-px flex space-x-8">
+      <div className="border-b border-gray-200 mb-8 print:hidden">
+        <nav className="-mb-px flex flex-wrap gap-x-8 gap-y-2">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -96,6 +98,14 @@ const AdminPanel = ({ chilis, config, serverInfo, onDataUpdate, onError }) => {
           />
         )}
 
+        {activeTab === 'codes' && (
+          <JudgeCodes
+            config={config}
+            onUpdate={() => onDataUpdate()}
+            onError={onError}
+          />
+        )}
+
         {activeTab === 'voting' && (
           <VotingControls
             config={config}
@@ -109,7 +119,7 @@ const AdminPanel = ({ chilis, config, serverInfo, onDataUpdate, onError }) => {
       </div>
 
       {/* Quick Stats */}
-      <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6 print:hidden">
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center">
             <div className="flex-shrink-0">

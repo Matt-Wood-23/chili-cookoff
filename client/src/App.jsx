@@ -98,10 +98,11 @@ function App() {
   return (
     <Router>
       <div className="min-h-screen bg-gray-50">
-        <Header 
+        <Header
           config={config}
           currentView={currentView}
           onViewChange={setCurrentView}
+          adminTokenRequired={serverInfo.admin_token_required}
         />
         
         {notice && (

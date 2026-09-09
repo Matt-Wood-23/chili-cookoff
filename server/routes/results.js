@@ -97,7 +97,7 @@ router.get('/stats', async (req, res) => {
       SELECT 
         COUNT(DISTINCT c.id) as total_chilis,
         COUNT(v.id) as total_votes,
-        COUNT(DISTINCT v.judge_key) as total_judges,
+        COUNT(DISTINCT v.voter_key) as total_judges,
         ROUND(AVG(v.overall), 1) as event_avg_overall,
         ROUND(AVG(v.heat), 1) as event_avg_heat,
         ROUND(AVG(v.flavor), 1) as event_avg_flavor,
@@ -131,7 +131,7 @@ router.get('/stats', async (req, res) => {
         COUNT(*) as vote_count,
         ROUND(AVG(overall), 1) as avg_given_score
       FROM votes
-      GROUP BY judge_key
+      GROUP BY voter_key
       ORDER BY vote_count DESC
       LIMIT 5
     `);

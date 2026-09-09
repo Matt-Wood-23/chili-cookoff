@@ -1,9 +1,10 @@
 const express = require('express');
 const adminAuth = require('../middleware/adminAuth');
+const { normalizeCode } = require('./judgeCodes');
 const router = express.Router();
 
-// GET /api/votes - Get all votes
-router.get('/', async (req, res) => {
+// GET /api/votes - Get all votes (admin: this exposes how each judge scored)
+router.get('/', adminAuth, async (req, res) => {
   try {
     const votes = await req.db.all(`
       SELECT v.*, c.name as chili_name, c.contestant_name
@@ -56,16 +57,13 @@ router.post('/', async (req, res) => {
       comments
     } = req.body;
 
-    // Validate required fields
-    if (!chili_id || !judge_name || heat === undefined || flavor === undefined ||
+    // Validate required fields. The judge name is checked further down, once we
+    // know whether a code is standing in for it.
+    if (!chili_id || heat === undefined || flavor === undefined ||
         texture === undefined || presentation === undefined || overall === undefined) {
       return res.status(400).json({
-        error: 'Chili ID, judge name, and all rating scores are required'
+        error: 'Chili ID and all rating scores are required'
       });
-    }
-
-    if (!String(judge_name).trim()) {
-      return res.status(400).json({ error: 'Judge name cannot be blank' });
     }
 
     // Scores must be whole numbers in 1-10. The old check only compared
@@ -92,27 +90,70 @@ router.post('/', async (req, res) => {
       return res.status(403).json({ error: 'Voting is currently closed' });
     }
 
-    const key = req.db.judgeKey(judge_name);
     const deviceId = req.get('X-Device-Id') || null;
+    const submittedCode = normalizeCode(req.get('X-Judge-Code') || req.body.judge_code || '');
+
+    // When the event issues codes, a code is what makes someone a judge.
+    const codesRequired =
+      (await req.db.getConfigValue('require_judge_code')) === 'true';
+
+    if (codesRequired) {
+      if (!submittedCode) {
+        return res.status(403).json({ error: 'A judge code is required to vote at this event' });
+      }
+      const codeRow = await req.db.get(
+        'SELECT code, revoked FROM judge_codes WHERE code = ?',
+        [submittedCode]
+      );
+      if (!codeRow || codeRow.revoked) {
+        return res.status(403).json({ error: 'That code is not valid. Check the slip and try again.' });
+      }
+    } else if (submittedCode) {
+      // Codes are off but one was supplied: only honour it if it is real, so a
+      // stale code in a browser cannot silently split someone's identity.
+      const codeRow = await req.db.get(
+        'SELECT code, revoked FROM judge_codes WHERE code = ?',
+        [submittedCode]
+      );
+      if (!codeRow || codeRow.revoked) {
+        return res.status(403).json({ error: 'That code is not valid. Check the slip and try again.' });
+      }
+    }
+
+    const judgeCode = submittedCode || null;
+
+    // A code identifies the judge on its own; without one we need a name.
+    if (!judgeCode && !String(judge_name || '').trim()) {
+      return res.status(400).json({ error: 'Judge name is required' });
+    }
+
+    const displayName = String(judge_name || '').trim() || `Judge ${judgeCode}`;
+    const key = req.db.judgeKey(judge_name);
+    const identity = req.db.voterKey({ judgeCode, judgeName: judge_name });
     const values = [
       Number(heat), Number(flavor), Number(texture),
       Number(presentation), Number(overall), comments || null
     ];
 
     const existing = await req.db.get(
-      'SELECT * FROM votes WHERE chili_id = ? AND judge_key = ?',
-      [chili_id, key]
+      'SELECT * FROM votes WHERE chili_id = ? AND voter_key = ?',
+      [chili_id, identity]
     );
 
     if (existing) {
-      // Same judge, same device: they are correcting a score they already
-      // submitted, so replace it rather than adding a second vote.
-      if (existing.device_id && deviceId && existing.device_id === deviceId) {
+      // A code is the judge, so re-rating under it is always a correction.
+      // Without codes we fall back to matching the device, since two people can
+      // share a first name but not a browser.
+      const sameJudge = judgeCode
+        ? true
+        : Boolean(existing.device_id && deviceId && existing.device_id === deviceId);
+
+      if (sameJudge) {
         await req.db.run(
           `UPDATE votes SET judge_name = ?, heat = ?, flavor = ?, texture = ?,
                             presentation = ?, overall = ?, comments = ?
            WHERE id = ?`,
-          [String(judge_name).trim(), ...values, existing.id]
+          [displayName, ...values, existing.id]
         );
         const updated = await req.db.get('SELECT * FROM votes WHERE id = ?', [existing.id]);
         return res.json({ ...updated, updated: true });
@@ -128,10 +169,22 @@ router.post('/', async (req, res) => {
     }
 
     const result = await req.db.run(
-      `INSERT INTO votes (chili_id, judge_name, judge_key, device_id, heat, flavor, texture, presentation, overall, comments)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [chili_id, String(judge_name).trim(), key, deviceId, ...values]
+      `INSERT INTO votes (chili_id, judge_name, judge_key, judge_code, voter_key, device_id, heat, flavor, texture, presentation, overall, comments)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [chili_id, displayName, key, judgeCode, identity, deviceId, ...values]
     );
+
+    // Record where a code was first redeemed. Reuse from another device is not
+    // blocked - people hand each other phones - but it is visible to the admin.
+    if (judgeCode) {
+      await req.db.run(
+        `UPDATE judge_codes
+         SET first_used_at = COALESCE(first_used_at, CURRENT_TIMESTAMP),
+             device_id = COALESCE(device_id, ?)
+         WHERE code = ?`,
+        [deviceId, judgeCode]
+      );
+    }
 
     const newVote = await req.db.get(
       'SELECT * FROM votes WHERE id = ?',
@@ -182,7 +235,7 @@ router.get('/stats', async (req, res) => {
       SELECT 
         COUNT(*) as total_votes,
         COUNT(DISTINCT chili_id) as total_chilis_voted,
-        COUNT(DISTINCT judge_key) as total_judges,
+        COUNT(DISTINCT voter_key) as total_judges,
         ROUND(AVG(overall), 1) as avg_overall_score,
         ROUND(AVG(heat), 1) as avg_heat_score,
         ROUND(AVG(flavor), 1) as avg_flavor_score,
@@ -194,7 +247,7 @@ router.get('/stats', async (req, res) => {
     const topJudges = await req.db.all(`
       SELECT MIN(judge_name) as judge_name, COUNT(*) as vote_count
       FROM votes
-      GROUP BY judge_key
+      GROUP BY voter_key
       ORDER BY vote_count DESC
       LIMIT 5
     `);
@@ -203,7 +256,7 @@ router.get('/stats', async (req, res) => {
     // phone) but it is also what stuffing looks like, so surface it rather than
     // blocking it and let the organizer judge.
     const deviceActivity = await req.db.all(`
-      SELECT device_id, COUNT(DISTINCT judge_key) as judge_count, COUNT(*) as vote_count
+      SELECT device_id, COUNT(DISTINCT voter_key) as judge_count, COUNT(*) as vote_count
       FROM votes
       WHERE device_id IS NOT NULL
       GROUP BY device_id
