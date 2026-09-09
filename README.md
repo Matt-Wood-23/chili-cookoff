@@ -107,10 +107,16 @@ have reached scores lower than it otherwise would. That is the point at which yo
 chase ratings rather than call a winner.
 
 **Coverage is tracked so you can do that chasing.** The judge count is however
-many people have cast at least one vote, so it grows as latecomers arrive. Each
-entry shows `3 of 12 — needs 9 more`, the board lists everything outstanding, and
-closing voting with gaps warns you first, naming each chili and its shortfall,
-before letting you proceed.
+many people have cast at least one vote, so it grows as latecomers arrive — it
+does not count slips handed out to people who have not started. Each entry shows
+`3 of 12 — needs 9 more`, the board lists everything outstanding, and closing
+voting with gaps warns you first, naming each chili and its shortfall, before
+letting you proceed.
+
+The admin panel shows the judge count and how many ratings are still outstanding
+across the whole event; **Results → Statistics** carries the same totals. With
+judge codes on, the **Judge Codes** tab separates codes that have been used from
+ones still unredeemed.
 
 **Genuine ties share a place** — two entries on the same score both show `T-1`,
 and the next entry is `#3`. Break it with a taste-off rather than letting a sort
