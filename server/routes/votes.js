@@ -1,4 +1,5 @@
 const express = require('express');
+const adminAuth = require('../middleware/adminAuth');
 const router = express.Router();
 
 // GET /api/votes - Get all votes
@@ -44,31 +45,39 @@ router.get('/chili/:id', async (req, res) => {
 // POST /api/votes - Submit a new vote
 router.post('/', async (req, res) => {
   try {
-    const { 
-      chili_id, 
-      judge_name, 
-      heat, 
-      flavor, 
-      texture, 
-      presentation, 
-      overall, 
-      comments 
+    const {
+      chili_id,
+      judge_name,
+      heat,
+      flavor,
+      texture,
+      presentation,
+      overall,
+      comments
     } = req.body;
 
     // Validate required fields
-    if (!chili_id || !judge_name || heat === undefined || flavor === undefined || 
+    if (!chili_id || !judge_name || heat === undefined || flavor === undefined ||
         texture === undefined || presentation === undefined || overall === undefined) {
-      return res.status(400).json({ 
-        error: 'Chili ID, judge name, and all rating scores are required' 
+      return res.status(400).json({
+        error: 'Chili ID, judge name, and all rating scores are required'
       });
     }
 
-    // Validate rating scores are within range 1-10
-    const scores = [heat, flavor, texture, presentation, overall];
-    if (scores.some(score => score < 1 || score > 10 || isNaN(score))) {
-      return res.status(400).json({ 
-        error: 'All rating scores must be between 1 and 10' 
-      });
+    if (!String(judge_name).trim()) {
+      return res.status(400).json({ error: 'Judge name cannot be blank' });
+    }
+
+    // Scores must be whole numbers in 1-10. The old check only compared
+    // magnitude, so a 9.9 sailed through and outranked every honest 9.
+    const scores = { heat, flavor, texture, presentation, overall };
+    for (const [category, value] of Object.entries(scores)) {
+      const numeric = Number(value);
+      if (!Number.isInteger(numeric) || numeric < 1 || numeric > 10) {
+        return res.status(400).json({
+          error: `${category} must be a whole number between 1 and 10`
+        });
+      }
     }
 
     // Check if chili exists
@@ -83,11 +92,45 @@ router.post('/', async (req, res) => {
       return res.status(403).json({ error: 'Voting is currently closed' });
     }
 
-    // Insert the vote
+    const key = req.db.judgeKey(judge_name);
+    const deviceId = req.get('X-Device-Id') || null;
+    const values = [
+      Number(heat), Number(flavor), Number(texture),
+      Number(presentation), Number(overall), comments || null
+    ];
+
+    const existing = await req.db.get(
+      'SELECT * FROM votes WHERE chili_id = ? AND judge_key = ?',
+      [chili_id, key]
+    );
+
+    if (existing) {
+      // Same judge, same device: they are correcting a score they already
+      // submitted, so replace it rather than adding a second vote.
+      if (existing.device_id && deviceId && existing.device_id === deviceId) {
+        await req.db.run(
+          `UPDATE votes SET judge_name = ?, heat = ?, flavor = ?, texture = ?,
+                            presentation = ?, overall = ?, comments = ?
+           WHERE id = ?`,
+          [String(judge_name).trim(), ...values, existing.id]
+        );
+        const updated = await req.db.get('SELECT * FROM votes WHERE id = ?', [existing.id]);
+        return res.json({ ...updated, updated: true });
+      }
+
+      // Same name from a different device is a name collision, not a
+      // correction. Tell them how to fix it instead of silently overwriting
+      // someone else's scores.
+      return res.status(409).json({
+        error: `A judge named "${existing.judge_name}" has already rated this chili. ` +
+               'Add a last initial to your name so both ratings count.'
+      });
+    }
+
     const result = await req.db.run(
-      `INSERT INTO votes (chili_id, judge_name, heat, flavor, texture, presentation, overall, comments) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [chili_id, judge_name, heat, flavor, texture, presentation, overall, comments]
+      `INSERT INTO votes (chili_id, judge_name, judge_key, device_id, heat, flavor, texture, presentation, overall, comments)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [chili_id, String(judge_name).trim(), key, deviceId, ...values]
     );
 
     const newVote = await req.db.get(
@@ -103,14 +146,8 @@ router.post('/', async (req, res) => {
 });
 
 // DELETE /api/votes - Clear all votes (admin only)
-router.delete('/', async (req, res) => {
+router.delete('/', adminAuth, async (req, res) => {
   try {
-    // Check if admin (you might want to add proper authentication)
-    const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.includes('admin')) {
-      return res.status(403).json({ error: 'Admin privileges required' });
-    }
-
     await req.db.run('DELETE FROM votes');
     res.json({ message: 'All votes cleared successfully' });
   } catch (error) {
@@ -120,7 +157,7 @@ router.delete('/', async (req, res) => {
 });
 
 // DELETE /api/votes/:id - Delete specific vote
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', adminAuth, async (req, res) => {
   try {
     const { id } = req.params;
 
@@ -145,7 +182,7 @@ router.get('/stats', async (req, res) => {
       SELECT 
         COUNT(*) as total_votes,
         COUNT(DISTINCT chili_id) as total_chilis_voted,
-        COUNT(DISTINCT judge_name) as total_judges,
+        COUNT(DISTINCT judge_key) as total_judges,
         ROUND(AVG(overall), 1) as avg_overall_score,
         ROUND(AVG(heat), 1) as avg_heat_score,
         ROUND(AVG(flavor), 1) as avg_flavor_score,
@@ -155,14 +192,27 @@ router.get('/stats', async (req, res) => {
     `);
 
     const topJudges = await req.db.all(`
-      SELECT judge_name, COUNT(*) as vote_count
+      SELECT MIN(judge_name) as judge_name, COUNT(*) as vote_count
       FROM votes
-      GROUP BY judge_name
+      GROUP BY judge_key
       ORDER BY vote_count DESC
       LIMIT 5
     `);
 
-    res.json({ ...stats, topJudges });
+    // One device submitting under many names is legitimate (people share a
+    // phone) but it is also what stuffing looks like, so surface it rather than
+    // blocking it and let the organizer judge.
+    const deviceActivity = await req.db.all(`
+      SELECT device_id, COUNT(DISTINCT judge_key) as judge_count, COUNT(*) as vote_count
+      FROM votes
+      WHERE device_id IS NOT NULL
+      GROUP BY device_id
+      HAVING judge_count > 1
+      ORDER BY judge_count DESC
+      LIMIT 10
+    `);
+
+    res.json({ ...stats, topJudges, deviceActivity });
   } catch (error) {
     console.error('Error fetching voting stats:', error);
     res.status(500).json({ error: 'Failed to fetch voting statistics' });

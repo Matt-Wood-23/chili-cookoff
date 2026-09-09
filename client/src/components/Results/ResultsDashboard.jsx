@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { resultsAPI, utils } from '../../services/api';
+import React, { useState, useEffect, useCallback } from 'react';
+import { resultsAPI, utils, mediaUrl } from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 
 const ResultsDashboard = ({ chilis, config, onDataUpdate, onError }) => {
@@ -8,11 +8,7 @@ const ResultsDashboard = ({ chilis, config, onDataUpdate, onError }) => {
   const [results, setResults] = useState(null);
   const [category, setCategory] = useState('overall');
 
-  useEffect(() => {
-    loadResults();
-  }, [activeTab, category]);
-
-  const loadResults = async () => {
+  const loadResults = useCallback(async () => {
     setLoading(true);
     try {
       let response;
@@ -39,7 +35,11 @@ const ResultsDashboard = ({ chilis, config, onDataUpdate, onError }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [activeTab, category, onError]);
+
+  useEffect(() => {
+    loadResults();
+  }, [loadResults]);
 
   const handleExportCSV = async () => {
     setLoading(true);
@@ -217,7 +217,7 @@ const Leaderboard = ({ results }) => {
                       {entry.image_path ? (
                         <img
                           className="h-10 w-10 rounded-full object-cover"
-                          src={`http://localhost:3001${entry.image_path}`}
+                          src={mediaUrl(entry.image_path)}
                           alt={entry.name}
                           onError={(e) => {
                             e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiNGM0Y0RjYiLz4KPHN2ZyB4PSI4IiB5PSI4IiB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSI+CjxwYXRoIGQ9Ik0xMiA4QzEwLjU4IDE4IDEwLjU4IDggMTIgOFoiIGZpbGw9IiM5Q0E0QUYiLz4KPC9zdmc+Cjwvc3ZnPg==';

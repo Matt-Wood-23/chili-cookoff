@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { chiliAPI } from '../../services/api';
+import { chiliAPI, mediaUrl } from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 
 const ManageEntries = ({ chilis, onUpdate, onError }) => {
@@ -105,7 +105,7 @@ const ManageEntries = ({ chilis, onUpdate, onError }) => {
                         {chili.image_path ? (
                           <img
                             className="h-10 w-10 rounded-full object-cover"
-                            src={`http://localhost:3001${chili.image_path}`}
+                            src={mediaUrl(chili.image_path)}
                             alt={chili.name}
                             onError={(e) => {
                               e.target.src = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDAiIGhlaWdodD0iNDAiIHZpZXdCb3g9IjAgMCA0MCA0MCIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPGNpcmNsZSBjeD0iMjAiIGN5PSIyMCIgcj0iMjAiIGZpbGw9IiNGM0Y0RjYiLz4KPHN2ZyB4PSI4IiB5PSI4IiB3aWR0aD0iMjQiIGhlaWdodD0iMjQiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0ibm9uZSI+CjxwYXRoIGQ9Ik0xMiA4QzEwLjU4IDE4IDEwLjU4IDggMTIgOFoiIGZpbGw9IiM5Q0E0QUYiLz4KPC9zdmc+Cjwvc3ZnPg==';
@@ -308,7 +308,7 @@ const EditChiliModal = ({ chili, onSave, onClose, loading }) => {
             {imagePreview || chili.image_path ? (
               <div className="space-y-2">
                 <img
-                  src={imagePreview || `http://localhost:3001${chili.image_path}`}
+                  src={imagePreview || mediaUrl(chili.image_path)}
                   alt="Preview"
                   className="w-32 h-32 object-cover rounded-lg"
                 />

@@ -97,7 +97,7 @@ router.get('/stats', async (req, res) => {
       SELECT 
         COUNT(DISTINCT c.id) as total_chilis,
         COUNT(v.id) as total_votes,
-        COUNT(DISTINCT v.judge_name) as total_judges,
+        COUNT(DISTINCT v.judge_key) as total_judges,
         ROUND(AVG(v.overall), 1) as event_avg_overall,
         ROUND(AVG(v.heat), 1) as event_avg_heat,
         ROUND(AVG(v.flavor), 1) as event_avg_flavor,
@@ -127,11 +127,11 @@ router.get('/stats', async (req, res) => {
     // Most active judges
     const activeJudges = await req.db.all(`
       SELECT 
-        judge_name,
+        MIN(judge_name) as judge_name,
         COUNT(*) as vote_count,
         ROUND(AVG(overall), 1) as avg_given_score
       FROM votes
-      GROUP BY judge_name
+      GROUP BY judge_key
       ORDER BY vote_count DESC
       LIMIT 5
     `);
@@ -186,8 +186,7 @@ router.get('/chili/:id', async (req, res) => {
         ROUND(AVG(v.presentation), 1) as avg_presentation,
         ROUND(AVG(v.overall), 1) as avg_overall,
         MAX(v.overall) as highest_overall,
-        MIN(v.overall) as lowest_overall,
-        STDDEV(v.overall) as overall_stddev
+        MIN(v.overall) as lowest_overall
       FROM chilis c
       LEFT JOIN votes v ON c.id = v.chili_id
       WHERE c.id = ?
@@ -223,8 +222,18 @@ router.get('/chili/:id', async (req, res) => {
       WHERE avg_overall > ? OR (avg_overall = ? AND vote_count > ?)
     `, [chiliDetails.avg_overall, chiliDetails.avg_overall, chiliDetails.vote_count]);
 
+    // SQLite ships no STDDEV aggregate, so derive the spread from the votes we
+    // already loaded. Useful for spotting an entry the judges disagreed on.
+    const overallScores = individualVotes.map(v => v.overall);
+    let overall_stddev = null;
+    if (overallScores.length > 1) {
+      const mean = overallScores.reduce((a, b) => a + b, 0) / overallScores.length;
+      const variance = overallScores.reduce((sum, n) => sum + (n - mean) ** 2, 0) / overallScores.length;
+      overall_stddev = Math.round(Math.sqrt(variance) * 100) / 100;
+    }
+
     res.json({
-      chili: chiliDetails,
+      chili: { ...chiliDetails, overall_stddev },
       votes: individualVotes,
       overall_rank: rankQuery.rank,
       lastUpdated: new Date().toISOString()
@@ -256,13 +265,26 @@ router.get('/export/csv', async (req, res) => {
       ORDER BY avg_overall DESC
     `);
 
-    // Create CSV content
-    const csvHeader = 'Name,Contestant,Vote Count,Avg Heat,Avg Flavor,Avg Texture,Avg Presentation,Avg Overall,Highest,Lowest\n';
-    const csvRows = results.map(row => 
-      `"${row.name}","${row.contestant_name}",${row.vote_count},${row.avg_heat},${row.avg_flavor},${row.avg_texture},${row.avg_presentation},${row.avg_overall},${row.highest_overall},${row.lowest_overall}`
-    ).join('\n');
-    
-    const csvContent = csvHeader + csvRows;
+    // Escape embedded quotes so a name like 5\" Alarm cannot break the row,
+    // and leave unscored entries blank instead of writing the string "null".
+    const quote = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`;
+    const number = (value) => (value === null || value === undefined ? '' : value);
+
+    const csvHeader = 'Name,Contestant,Vote Count,Avg Heat,Avg Flavor,Avg Texture,Avg Presentation,Avg Overall,Highest,Lowest';
+    const csvRows = results.map(row => [
+      quote(row.name),
+      quote(row.contestant_name),
+      row.vote_count,
+      number(row.avg_heat),
+      number(row.avg_flavor),
+      number(row.avg_texture),
+      number(row.avg_presentation),
+      number(row.avg_overall),
+      number(row.highest_overall),
+      number(row.lowest_overall)
+    ].join(','));
+
+    const csvContent = [csvHeader, ...csvRows].join('\n');
 
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename="chili-cookoff-results-${new Date().toISOString().split('T')[0]}.csv"`);

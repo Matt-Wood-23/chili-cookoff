@@ -1,8 +1,8 @@
 import React, { useState, useRef } from 'react';
-import { ocrAPI, utils } from '../../services/api';
+import { ocrAPI } from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 
-const OCRUpload = ({ onCapture, onClose }) => {
+const OCRUpload = ({ chiliName, onCapture, onClose }) => {
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [processing, setProcessing] = useState(false);
@@ -60,8 +60,8 @@ const OCRUpload = ({ onCapture, onClose }) => {
         setProgress(prev => Math.min(prev + 10, 90));
       }, 500);
 
-      const response = await ocrAPI.processImage(selectedFile);
-      
+      const response = await ocrAPI.processImage(selectedFile, chiliName);
+
       clearInterval(progressInterval);
       setProgress(100);
 
@@ -96,8 +96,10 @@ const OCRUpload = ({ onCapture, onClose }) => {
         <div className="border-b px-6 py-4">
           <div className="flex justify-between items-center">
             <div>
-              <h2 className="text-xl font-bold text-gray-900">OCR Scoresheet Upload</h2>
-              <p className="text-gray-600">Upload a photo of your paper scoresheet</p>
+              <h2 className="text-xl font-bold text-gray-900">Scan Scoresheet</h2>
+              <p className="text-gray-600">
+                {chiliName ? `Photo of the scoresheet for ${chiliName}` : 'Upload a photo of your paper scoresheet'}
+              </p>
             </div>
             <button
               onClick={onClose}
@@ -122,6 +124,12 @@ const OCRUpload = ({ onCapture, onClose }) => {
               <li>• Write numbers clearly in the rating boxes</li>
             </ul>
           </div>
+
+          {error && !selectedFile && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
+              <span className="text-red-700 text-sm">{error}</span>
+            </div>
+          )}
 
           {/* File Upload Area */}
           {!selectedFile ? (

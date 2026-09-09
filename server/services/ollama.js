@@ -32,6 +32,10 @@ class OllamaService {
 
   async extractScoresheetData(imageBase64, chiliName = '') {
     try {
+      // Ollama wants bare base64 in `images`; a data: URL is rejected. Callers
+      // pass both forms, so normalize here.
+      const imageData = String(imageBase64).replace(/^data:[^;]+;base64,/, '');
+
       const prompt = `You are an OCR system for chili cook-off scoresheets. Extract the following data from this image and return ONLY valid JSON format:
 
 {
@@ -58,7 +62,7 @@ Only return valid JSON.`;
       const response = await this.client.post('/api/generate', {
         model: 'qwen2.5-vl:3b',
         prompt: prompt,
-        images: [imageBase64],
+        images: [imageData],
         stream: false,
         options: {
           temperature: 0.1,
@@ -120,12 +124,7 @@ Only return valid JSON.`;
 
   async processImageFile(imageBuffer, chiliName = '') {
     try {
-      // Convert buffer to base64
       const base64 = imageBuffer.toString('base64');
-      const mimeType = 'image/jpeg'; // Assume JPEG, could be detected from buffer
-      
-      const base64Data = `data:${mimeType};base64,${base64}`;
-      
       return await this.extractScoresheetData(base64, chiliName);
     } catch (error) {
       console.error('Error processing image file:', error.message);

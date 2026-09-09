@@ -1,6 +1,60 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://localhost:3001/api';
+// Judges load this on their phones from the organizer's LAN address, where
+// "localhost" points at the phone itself. Derive the API host from wherever the
+// page was served and let VITE_API_URL override it for other setups.
+const SERVER_PORT = import.meta.env.VITE_API_PORT || '3001';
+
+export const SERVER_ORIGIN = (
+  import.meta.env.VITE_API_URL ||
+  `${window.location.protocol}//${window.location.hostname}:${SERVER_PORT}`
+).replace(/\/$/, '');
+
+const API_BASE_URL = `${SERVER_ORIGIN}/api`;
+
+// Build an absolute URL for a server-hosted upload (image_path is server-relative).
+export const mediaUrl = (imagePath) =>
+  imagePath ? `${SERVER_ORIGIN}${imagePath}` : null;
+
+// A stable per-browser id. Not identity and not a security control — it lets the
+// server tell "this judge is fixing their own score" apart from "a second person
+// with the same name", and lets the organizer spot one device rating under many
+// names. Shared phones are normal at these events, so it never blocks a vote.
+const DEVICE_ID_KEY = 'chiliDeviceId';
+
+export const getDeviceId = () => {
+  try {
+    let id = localStorage.getItem(DEVICE_ID_KEY);
+    if (!id) {
+      id = (crypto.randomUUID && crypto.randomUUID()) ||
+        `dev-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+      localStorage.setItem(DEVICE_ID_KEY, id);
+    }
+    return id;
+  } catch {
+    // Private browsing with storage disabled: proceed without a device id.
+    return null;
+  }
+};
+
+const ADMIN_TOKEN_KEY = 'chiliAdminToken';
+
+export const getAdminToken = () => {
+  try {
+    return localStorage.getItem(ADMIN_TOKEN_KEY) || '';
+  } catch {
+    return '';
+  }
+};
+
+export const setAdminToken = (token) => {
+  try {
+    if (token) localStorage.setItem(ADMIN_TOKEN_KEY, token);
+    else localStorage.removeItem(ADMIN_TOKEN_KEY);
+  } catch {
+    // Nothing to do if storage is unavailable.
+  }
+};
 
 // Create axios instance with default config
 const api = axios.create({
@@ -14,7 +68,16 @@ const api = axios.create({
 // Request interceptor to add auth if needed
 api.interceptors.request.use(
   (config) => {
-    // Add any auth headers here if needed
+    const deviceId = getDeviceId();
+    if (deviceId) {
+      config.headers['X-Device-Id'] = deviceId;
+    }
+
+    const adminToken = getAdminToken();
+    if (adminToken) {
+      config.headers['Authorization'] = `Bearer ${adminToken}`;
+    }
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -127,16 +190,7 @@ export const configAPI = {
   update: (configs) => api.put('/config', configs),
   
   // Update specific configuration key
-  updateKey: (key, value) => api.put(`/config/${key}`, { value }),
-  
-  // Delete configuration key
-  delete: (key) => api.delete(`/config/${key}`),
-  
-  // Reset to defaults
-  reset: () => api.post('/config/reset'),
-  
-  // Get event status
-  getEventStatus: () => api.get('/config/event/status')
+  updateKey: (key, value) => api.put(`/config/${key}`, { value })
 };
 
 // Health check

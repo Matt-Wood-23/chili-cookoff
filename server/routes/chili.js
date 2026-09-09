@@ -1,12 +1,14 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
+const { uploadsDir } = require('../config/paths');
+const adminAuth = require('../middleware/adminAuth');
 const router = express.Router();
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, path.join(__dirname, '..', 'uploads'));
+    cb(null, uploadsDir);
   },
   filename: (req, file, cb) => {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -56,7 +58,7 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/chilis - Create new chili entry
-router.post('/', upload.single('image'), async (req, res) => {
+router.post('/', adminAuth, upload.single('image'), async (req, res) => {
   try {
     const { name, description, contestant_name } = req.body;
 
@@ -87,7 +89,7 @@ router.post('/', upload.single('image'), async (req, res) => {
 });
 
 // PUT /api/chilis/:id - Update chili entry
-router.put('/:id', upload.single('image'), async (req, res) => {
+router.put('/:id', adminAuth, upload.single('image'), async (req, res) => {
   try {
     const { id } = req.params;
     const { name, description, contestant_name } = req.body;
@@ -118,7 +120,7 @@ router.put('/:id', upload.single('image'), async (req, res) => {
 });
 
 // DELETE /api/chilis/:id - Delete chili entry
-router.delete('/:id', async (req, res) => {
+router.delete('/:id', adminAuth, async (req, res) => {
   try {
     const { id } = req.params;
 

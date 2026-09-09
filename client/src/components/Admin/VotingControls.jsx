@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { configAPI, voteAPI, resultsAPI, utils } from '../../services/api';
+import { configAPI, voteAPI, resultsAPI, utils, getAdminToken, setAdminToken } from '../../services/api';
 import LoadingSpinner from '../LoadingSpinner';
 
-const VotingControls = ({ config, isVotingOpen, onToggleVoting, onUpdate, onError }) => {
+const VotingControls = ({ config, isVotingOpen, adminTokenRequired, onToggleVoting, onUpdate, onError }) => {
   const [loading, setLoading] = useState(false);
+  const [adminToken, setToken] = useState(getAdminToken);
   const [eventConfig, setEventConfig] = useState({
     event_name: config?.event_name || '',
     event_date: config?.event_date || '',
@@ -19,6 +20,15 @@ const VotingControls = ({ config, isVotingOpen, onToggleVoting, onUpdate, onErro
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleSaveToken = (e) => {
+    e.preventDefault();
+    setAdminToken(adminToken.trim());
+    onError(
+      adminToken.trim() ? 'Admin token saved on this device' : 'Admin token cleared',
+      'success'
+    );
   };
 
   const handleClearAllVotes = async () => {
@@ -132,6 +142,32 @@ const VotingControls = ({ config, isVotingOpen, onToggleVoting, onUpdate, onErro
           </div>
         </div>
       </div>
+
+      {adminTokenRequired && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-2">Admin Token</h3>
+          <p className="text-sm text-gray-600 mb-4">
+            This server was started with an ADMIN_TOKEN, so changes need it. It is
+            stored on this device only.
+          </p>
+          <form onSubmit={handleSaveToken} className="flex flex-wrap gap-3 items-end">
+            <div className="flex-1 min-w-[16rem]">
+              <label htmlFor="adminToken" className="block text-sm font-medium text-gray-700 mb-2">
+                Token
+              </label>
+              <input
+                id="adminToken"
+                type="password"
+                value={adminToken}
+                onChange={(e) => setToken(e.target.value)}
+                placeholder="Paste the ADMIN_TOKEN value"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-chili-red"
+              />
+            </div>
+            <button type="submit" className="admin-button">Save</button>
+          </form>
+        </div>
+      )}
 
       {/* Event Configuration */}
       <div className="bg-white rounded-lg shadow p-6">

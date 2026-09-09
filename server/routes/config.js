@@ -1,4 +1,5 @@
 const express = require('express');
+const adminAuth = require('../middleware/adminAuth');
 const router = express.Router();
 
 // GET config
@@ -25,7 +26,7 @@ router.get('/:key', async (req, res) => {
 });
 
 // UPDATE config
-router.put('/', async (req, res) => {
+router.put('/', adminAuth, async (req, res) => {
   try {
     const configData = req.body;
     await req.db.updateConfig(configData);
@@ -37,7 +38,7 @@ router.put('/', async (req, res) => {
 });
 
 // UPDATE config value
-router.put('/:key', async (req, res) => {
+router.put('/:key', adminAuth, async (req, res) => {
   try {
     const { key } = req.params;
     const { value } = req.body;
