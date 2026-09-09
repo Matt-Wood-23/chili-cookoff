@@ -4,6 +4,7 @@ import ManageEntries from './ManageEntries';
 import VotingControls from './VotingControls';
 import PaperBallotEntry from './PaperBallotEntry';
 import JudgeCodes from './JudgeCodes';
+import ShareAccess from './ShareAccess';
 import LoadingSpinner from '../LoadingSpinner';
 import { configAPI } from '../../services/api';
 
@@ -33,6 +34,7 @@ const AdminPanel = ({ chilis, config, serverInfo, onDataUpdate, onError }) => {
     { id: 'manage', label: 'Manage Entries', icon: '📝' },
     { id: 'paper', label: 'Paper Ballots', icon: '🧾' },
     { id: 'codes', label: 'Judge Codes', icon: '🎟️' },
+    { id: 'share', label: 'Share', icon: '📲' },
     { id: 'voting', label: 'Voting Controls', icon: '🗳️' }
   ];
 
@@ -104,6 +106,10 @@ const AdminPanel = ({ chilis, config, serverInfo, onDataUpdate, onError }) => {
             onUpdate={() => onDataUpdate()}
             onError={onError}
           />
+        )}
+
+        {activeTab === 'share' && (
+          <ShareAccess config={config} onError={onError} />
         )}
 
         {activeTab === 'voting' && (

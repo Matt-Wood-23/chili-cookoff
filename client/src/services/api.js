@@ -230,7 +230,10 @@ export const configAPI = {
   update: (configs) => api.put('/config', configs),
   
   // Update specific configuration key
-  updateKey: (key, value) => api.put(`/config/${key}`, { value })
+  updateKey: (key, value) => api.put(`/config/${key}`, { value }),
+
+  // LAN addresses this server is reachable on (fallback for the share panel)
+  getNetworkAddresses: () => api.get('/config/network/addresses')
 };
 
 // Health check

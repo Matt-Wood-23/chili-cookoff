@@ -21,16 +21,16 @@ const Header = ({ config, currentView, onViewChange, adminTokenRequired }) => {
   return (
     <header className="bg-white shadow-sm border-b">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-16">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 py-3 sm:h-16 sm:py-0">
           {/* Logo and Event Info */}
-          <div className="flex items-center">
-            <div className="flex-shrink-0 flex items-center">
-              <span className="text-2xl">🌶️</span>
-              <h1 className="ml-2 text-xl font-bold text-gray-900">
+          <div className="flex items-center min-w-0">
+            <div className="flex items-center min-w-0">
+              <span className="text-2xl flex-shrink-0">🌶️</span>
+              <h1 className="ml-2 text-lg sm:text-xl font-bold text-gray-900 truncate">
                 {config?.event_name || 'Chili Cook-Off'}
               </h1>
             </div>
-            <div className="ml-6 hidden md:block">
+            <div className="ml-6 hidden lg:block">
               <div className="flex items-center space-x-4 text-sm text-gray-500">
                 <span>{config?.event_date || 'TBD'}</span>
                 <span>•</span>
@@ -40,7 +40,7 @@ const Header = ({ config, currentView, onViewChange, adminTokenRequired }) => {
           </div>
 
           {/* Navigation */}
-          <nav className="flex items-center space-x-8">
+          <nav className="flex items-center gap-2 sm:gap-4 order-last sm:order-none">
             {navItems.map((item) => (
               <Link
                 key={item.key}
@@ -58,31 +58,20 @@ const Header = ({ config, currentView, onViewChange, adminTokenRequired }) => {
           </nav>
 
           {/* Status Indicator */}
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center">
-              <div className={`w-3 h-3 rounded-full mr-2 ${
-                isVotingOpen ? 'bg-green-500' : 'bg-red-500'
-              }`}></div>
-              <span className="text-sm font-medium text-gray-600">
-                {isVotingOpen ? 'Voting Open' : 'Voting Closed'}
-              </span>
-            </div>
-            
-            {/* Mobile menu button */}
-            <button className="md:hidden p-2 rounded-md text-gray-600 hover:text-chili-red hover:bg-gray-50">
-              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
+          <div className="flex items-center flex-shrink-0">
+            <div className={`w-3 h-3 rounded-full mr-2 flex-shrink-0 ${
+              isVotingOpen ? 'bg-green-500' : 'bg-red-500'
+            }`}></div>
+            <span className="text-sm font-medium text-gray-600 whitespace-nowrap">
+              {isVotingOpen ? 'Voting Open' : 'Voting Closed'}
+            </span>
           </div>
         </div>
 
-        {/* Mobile navigation */}
-        <div className="md:hidden pb-4">
-          <div className="flex items-center justify-between text-sm text-gray-500">
-            <span>{config?.event_date || 'TBD'}</span>
-            <span>{config?.event_location || 'TBD'}</span>
-          </div>
+        {/* Event details, shown below the bar on phones */}
+        <div className="sm:hidden pb-3 flex items-center justify-between text-xs text-gray-500">
+          <span className="truncate">{config?.event_date || 'TBD'}</span>
+          <span className="truncate ml-3">{config?.event_location || 'TBD'}</span>
         </div>
       </div>
 

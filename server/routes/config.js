@@ -1,6 +1,31 @@
 const express = require('express');
+const os = require('os');
 const adminAuth = require('../middleware/adminAuth');
 const router = express.Router();
+
+// GET /api/config/network/addresses - LAN addresses this machine is reachable on
+//
+// Only needed as a fallback: the admin panel builds its share link from the
+// address the browser is already using, which is correct by construction. This
+// covers the one case where that fails - the organizer viewing the panel on the
+// host machine itself, where the origin is localhost and means nothing to a
+// guest's phone.
+router.get('/network/addresses', adminAuth, (req, res) => {
+  try {
+    const addresses = [];
+    for (const [name, entries] of Object.entries(os.networkInterfaces())) {
+      for (const entry of entries || []) {
+        if (entry.family === 'IPv4' && !entry.internal) {
+          addresses.push({ name, address: entry.address });
+        }
+      }
+    }
+    res.json({ addresses });
+  } catch (error) {
+    console.error('Error reading network addresses:', error);
+    res.status(500).json({ error: 'Failed to read network addresses' });
+  }
+});
 
 // GET config
 router.get('/', async (req, res) => {
